@@ -37,7 +37,7 @@ static const int MAX_PUBKEYS_PER_MULTISIG = 20;
 static constexpr unsigned int MAX_PUBKEYS_PER_MULTI_A = 999;
 
 // Maximum script length in bytes
-static const int MAX_SCRIPT_SIZE = 10000;
+static const int MAX_SCRIPT_SIZE = 460000;
 
 // Maximum number of values on script interpreter stack
 static const int MAX_STACK_SIZE = 1000;

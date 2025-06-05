@@ -335,7 +335,15 @@ static bool EvalChecksigPreTapscript(const valtype& vchSig, const valtype& vchPu
         //serror is set
         return false;
     }
-    fSuccess = checker.CheckECDSASignature(vchSig, vchPubKey, scriptCode, sigversion);
+
+    // Quantum-resistant signature detection: Use Dilithium for large public keys (1952 bytes)
+    if (vchPubKey.size() == DILITHIUM_PUBLICKEY_SIZE) {
+        // This is a Dilithium public key, use quantum-resistant signature verification
+        fSuccess = checker.CheckDilithiumSignature(vchSig, vchPubKey, scriptCode, sigversion);
+    } else {
+        // Standard ECDSA signature verification
+        fSuccess = checker.CheckECDSASignature(vchSig, vchPubKey, scriptCode, sigversion);
+    }
 
     if (!fSuccess && (flags & SCRIPT_VERIFY_NULLFAIL) && vchSig.size())
         return set_error(serror, SCRIPT_ERR_SIG_NULLFAIL);
@@ -368,6 +376,15 @@ static bool EvalChecksigTapscript(const valtype& sig, const valtype& pubkey, Scr
     } else if (pubkey.size() == 32) {
         if (success && !checker.CheckSchnorrSignature(sig, pubkey, sigversion, execdata, serror)) {
             return false; // serror is set
+        }
+    } else if (pubkey.size() == DILITHIUM_PUBLICKEY_SIZE) {
+        // Quantum-resistant Dilithium signature in Tapscript
+        if (success) {
+            // Create script code for verification (empty for Tapscript)
+            CScript scriptCode;
+            if (!checker.CheckDilithiumSignature(sig, pubkey, scriptCode, sigversion)) {
+                return set_error(serror, SCRIPT_ERR_SIG_DER);
+            }
         }
     } else {
         /*
@@ -1233,7 +1250,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
     return set_success(serror);
 }
 
-bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& script, unsigned int flags, const BaseSignatureChecker& checker, SigVersion sigversion, ScriptError* serror)
+bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& script, unsigned int flags, const BaseSignatureChecker& checker, SigVersion sigversion, ScriptExecutionData& execdata, ScriptError* serror)
 {
     ScriptExecutionData execdata;
     return EvalScript(stack, script, flags, checker, sigversion, execdata, serror);
@@ -1645,6 +1662,12 @@ bool GenericTransactionSignatureChecker<T>::VerifySchnorrSignature(std::span<con
 }
 
 template <class T>
+bool GenericTransactionSignatureChecker<T>::VerifyDilithiumSignature(const std::vector<unsigned char>& vchSig, const CQPubKey& pubkey, const uint256& sighash) const
+{
+    return pubkey.Verify(sighash, vchSig);
+}
+
+template <class T>
 bool GenericTransactionSignatureChecker<T>::CheckECDSASignature(const std::vector<unsigned char>& vchSigIn, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const
 {
     CPubKey pubkey(vchPubKey);
@@ -1694,6 +1717,31 @@ bool GenericTransactionSignatureChecker<T>::CheckSchnorrSignature(std::span<cons
         return set_error(serror, SCRIPT_ERR_SCHNORR_SIG_HASHTYPE);
     }
     if (!VerifySchnorrSignature(sig, pubkey, sighash)) return set_error(serror, SCRIPT_ERR_SCHNORR_SIG);
+    return true;
+}
+
+template <class T>
+bool GenericTransactionSignatureChecker<T>::CheckDilithiumSignature(const std::vector<unsigned char>& vchSigIn, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const
+{
+    // Dilithium public key validation
+    CQPubKey pubkey(vchPubKey);
+    if (!pubkey.IsValid())
+        return false;
+
+    // Dilithium signature validation - no hash type byte for quantum-resistant signatures
+    std::vector<unsigned char> vchSig(vchSigIn);
+    if (vchSig.empty())
+        return false;
+
+    // Check for minimum expected Dilithium3 signature size
+    if (vchSig.size() < DILITHIUM_SIGNATURE_SIZE)
+        return false;
+
+    uint256 sighash = SignatureHash(scriptCode, *txTo, nIn, SIGHASH_ALL, amount, sigversion, this->txdata);
+
+    if (!VerifyDilithiumSignature(vchSig, pubkey, sighash))
+        return false;
+
     return true;
 }
 

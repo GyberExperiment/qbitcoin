@@ -3,7 +3,7 @@
 
 CXX = g++
 CXXFLAGS = -std=c++20 -Wall -Wextra -O2 -I. -Isrc
-LDFLAGS = 
+LDFLAGS = -Wl,-force_load,src/dilithium/libdilithium.a
 
 # Dilithium library path
 DILITHIUM_PATH = src/dilithium
@@ -33,8 +33,12 @@ QBTC_OBJECTS = $(QBTC_SOURCES:.cpp=.o)
 TEST_TARGET = test_qbtc_basic
 TEST_SOURCES = test_qbtc_basic.cpp
 
+# Script engine objects
+SCRIPT_OBJS = src/script/script.o src/script/interpreter.o src/primitives/transaction.o \
+             src/hash.o src/uint256.o src/serialize.o
+
 # Default target
-all: $(TEST_TARGET)
+all: test_qbtc_basic test_script_integration
 
 # Build Dilithium library
 $(DILITHIUM_LIB):
@@ -62,11 +66,17 @@ test: $(TEST_TARGET)
 	@echo "Running QBTC tests..."
 	./$(TEST_TARGET)
 
+# Build script integration test
+test_script_integration: $(QBTC_OBJECTS) $(SCRIPT_OBJS) test_script_integration.cpp
+	@echo "Building QBTC script integration test..."
+	$(CXX) $(CXXFLAGS) test_script_integration.cpp $(QBTC_OBJECTS) $(SCRIPT_OBJS) $(LDFLAGS) -o test_script_integration
+	@echo "✅ QBTC script integration test built successfully!"
+
 # Clean build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
-	rm -f $(QBTC_OBJECTS)
-	rm -f $(TEST_TARGET)
+	rm -f $(QBTC_OBJECTS) $(SCRIPT_OBJS)
+	rm -f $(TEST_TARGET) test_script_integration
 	@echo "✅ Clean completed"
 
 # Install dependencies (Ubuntu/Debian)

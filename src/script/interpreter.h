@@ -18,11 +18,16 @@
 #include <optional>
 #include <vector>
 
+#include <key.h> // For quantum-resistant signatures support
+
 class CPubKey;
 class CScript;
 class CScriptNum;
 class XOnlyPubKey;
 struct CScriptWitness;
+
+// Forward declarations for quantum-resistant types
+class CQPubKey;
 
 /** Signature hash types/flags */
 enum
@@ -242,6 +247,13 @@ extern const HashWriter HASHER_TAPBRANCH;  //!< Hasher with tag "TapBranch" pre-
 template <class T>
 uint256 SignatureHash(const CScript& scriptCode, const T& txTo, unsigned int nIn, int32_t nHashType, const CAmount& amount, SigVersion sigversion, const PrecomputedTransactionData* cache = nullptr);
 
+/** Signature hash type wrapper class */
+class SigHashType
+{
+    // ... existing code ...
+};
+
+/** Base class for signature checkers. */
 class BaseSignatureChecker
 {
 public:
@@ -253,6 +265,12 @@ public:
     virtual bool CheckSchnorrSignature(std::span<const unsigned char> sig, std::span<const unsigned char> pubkey, SigVersion sigversion, ScriptExecutionData& execdata, ScriptError* serror = nullptr) const
     {
         return false;
+    }
+
+    // NEW: Add quantum-resistant signature checking
+    virtual bool CheckDilithiumSignature(const std::vector<unsigned char>& signature, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const
+    {
+        return false; // Default implementation - will be overridden by specific checkers
     }
 
     virtual bool CheckLockTime(const CScriptNum& nLockTime) const
@@ -293,12 +311,14 @@ private:
 protected:
     virtual bool VerifyECDSASignature(const std::vector<unsigned char>& vchSig, const CPubKey& vchPubKey, const uint256& sighash) const;
     virtual bool VerifySchnorrSignature(std::span<const unsigned char> sig, const XOnlyPubKey& pubkey, const uint256& sighash) const;
+    virtual bool VerifyDilithiumSignature(const std::vector<unsigned char>& vchSig, const CQPubKey& vchPubKey, const uint256& sighash) const;
 
 public:
     GenericTransactionSignatureChecker(const T* txToIn, unsigned int nInIn, const CAmount& amountIn, MissingDataBehavior mdb) : txTo(txToIn), m_mdb(mdb), nIn(nInIn), amount(amountIn), txdata(nullptr) {}
     GenericTransactionSignatureChecker(const T* txToIn, unsigned int nInIn, const CAmount& amountIn, const PrecomputedTransactionData& txdataIn, MissingDataBehavior mdb) : txTo(txToIn), m_mdb(mdb), nIn(nInIn), amount(amountIn), txdata(&txdataIn) {}
     bool CheckECDSASignature(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const override;
     bool CheckSchnorrSignature(std::span<const unsigned char> sig, std::span<const unsigned char> pubkey, SigVersion sigversion, ScriptExecutionData& execdata, ScriptError* serror = nullptr) const override;
+    bool CheckDilithiumSignature(const std::vector<unsigned char>& signature, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const override;
     bool CheckLockTime(const CScriptNum& nLockTime) const override;
     bool CheckSequence(const CScriptNum& nSequence) const override;
 };
@@ -322,6 +342,11 @@ public:
     bool CheckSchnorrSignature(std::span<const unsigned char> sig, std::span<const unsigned char> pubkey, SigVersion sigversion, ScriptExecutionData& execdata, ScriptError* serror = nullptr) const override
     {
         return m_checker.CheckSchnorrSignature(sig, pubkey, sigversion, execdata, serror);
+    }
+
+    bool CheckDilithiumSignature(const std::vector<unsigned char>& signature, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const override
+    {
+        return m_checker.CheckDilithiumSignature(signature, vchPubKey, scriptCode, sigversion);
     }
 
     bool CheckLockTime(const CScriptNum& nLockTime) const override
