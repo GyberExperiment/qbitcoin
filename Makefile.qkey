@@ -1,0 +1,53 @@
+CC = g++
+CFLAGS = -std=c++17 -Wall -Wextra -O2 -I. -Isrc
+LDFLAGS = 
+
+# Dilithium source files
+DILITHIUM_SOURCES = src/dilithium/fips202.c \
+                   src/dilithium/ntt.c \
+                   src/dilithium/packing.c \
+                   src/dilithium/poly.c \
+                   src/dilithium/polyvec.c \
+                   src/dilithium/reduce.c \
+                   src/dilithium/rounding.c \
+                   src/dilithium/sign.c \
+                   src/dilithium/symmetric-shake.c \
+                   src/dilithium/randombytes.c
+
+# Bitcoin source files (minimal set for testing)
+BITCOIN_SOURCES = src/random.cpp \
+                 src/uint256.cpp \
+                 src/hash.cpp
+
+# QBTC source files
+QBTC_SOURCES = src/qkey.cpp
+
+# Test program
+TEST_SOURCES = test_qkey.cpp
+
+# Object files
+DILITHIUM_OBJECTS = $(DILITHIUM_SOURCES:.c=.o)
+BITCOIN_OBJECTS = $(BITCOIN_SOURCES:.cpp=.o)
+QBTC_OBJECTS = $(QBTC_SOURCES:.cpp=.o)
+TEST_OBJECTS = $(TEST_SOURCES:.cpp=.o)
+
+# Target
+TARGET = test_qkey
+
+all: $(TARGET)
+
+$(TARGET): $(DILITHIUM_OBJECTS) $(BITCOIN_OBJECTS) $(QBTC_OBJECTS) $(TEST_OBJECTS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Compile C files (Dilithium)
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Compile C++ files
+%.o: %.cpp
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -f $(DILITHIUM_OBJECTS) $(BITCOIN_OBJECTS) $(QBTC_OBJECTS) $(TEST_OBJECTS) $(TARGET)
+
+.PHONY: all clean 

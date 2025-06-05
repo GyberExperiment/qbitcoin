@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2025 Gybernaty | RocketScience | Open Community
+Copyright (c) 2025 QBTC Developers | Gybernaty | RocketScience | Open Community
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+QBTC: Quantum-Resistant Bitcoin Implementation
+Based on Bitcoin Core (https://github.com/bitcoin/bitcoin)
+Uses CRYSTALS-Dilithium from pq-crystals (https://github.com/pq-crystals/dilithium)
+
+This project incorporates code from:
+1. Bitcoin Core - MIT Licensed
+2. CRYSTALS-Dilithium - Public Domain/CC0
+
+All quantum-resistant cryptographic implementations are original work
+by the QBTC development team.
