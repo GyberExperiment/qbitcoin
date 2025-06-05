@@ -362,6 +362,10 @@ if(BUILD_QBITCOIND)
   add_executable(qbitcoind
     qbitcoind.cpp
     init/bitcoind.cpp
+    quantum/manager.cpp
+    dilithium/qbtc_wrapper.o
+    dilithium/dilithium3_aliases.o
+    dilithium/dilithium_wrapper_fixed.o
   )
   add_windows_resources(qbitcoind bitcoind-res.rc)
   add_windows_application_manifest(qbitcoind)

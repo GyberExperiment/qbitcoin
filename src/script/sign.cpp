@@ -85,7 +85,7 @@ bool MutableTransactionSignatureCreator::CreateSchnorrSig(const SigningProvider&
     if (!SignatureHashSchnorr(hash, execdata, m_txto, nIn, nHashType, sigversion, *m_txdata, MissingDataBehavior::FAIL)) return false;
     sig.resize(64);
     // Use uint256{} as aux_rnd for now.
-    if (!key.SignSchnorr(hash, sig, merkle_root, {})) return false;
+    if (!key.SignSchnorr(hash, sig.data(), sig.size(), merkle_root, {})) return false;
     if (nHashType) sig.push_back(nHashType);
     return true;
 }
@@ -122,7 +122,7 @@ static bool GetPubKey(const SigningProvider& provider, const SignatureData& sigd
     }
     const auto& tap_pk_it = sigdata.tap_pubkeys.find(address);
     if (tap_pk_it != sigdata.tap_pubkeys.end()) {
-        pubkey = tap_pk_it->second.GetEvenCorrespondingCPubKey();
+        pubkey = tap_pk_it->second.GetEvenCorrespondingCQPubKey();
         return true;
     }
     // Query the underlying provider

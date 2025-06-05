@@ -2,7 +2,6 @@
 #define BITCOIN_COMPRESSED_QUANTUM_KEYS_H
 
 // Полные includes для боевой реализации
-#include <key_original.h>           // Для CKey (ECDSA)
 #include <key.h>                   // Для CQKey (quantum)
 #include <pubkey.h>
 #include <hash.h>
@@ -28,7 +27,6 @@
  */
 
 // Forward declarations
-class CKey;
 class CQKey;  
 class CQPubKey;
 
@@ -36,8 +34,8 @@ class CQPubKey;
 class CQuantumKeyPair {
 private:
     unsigned char seed_data[32];
-    CKey ecdsa_key;                 // Обычный ECDSA ключ из key_original.h
-    CQKey dilithium_key;            // Quantum ключ из key.h
+    CQKey quantum_key;              // Quantum ключ из key.h (основной)
+    CQKey dilithium_key;            // Quantum ключ из key.h (для совместимости)
     uint160 address_hash;
     bool is_valid;
 
@@ -59,9 +57,9 @@ public:
     static CQuantumKeyPair Generate();
     
     /** Доступ к ключам */
-    const CKey& GetECDSAKey() const { return ecdsa_key; }
+    const CQKey& GetQuantumKey() const { return quantum_key; }
     const CQKey& GetDilithiumKey() const { return dilithium_key; }
-    CPubKey GetECDSAPubKey() const { return ecdsa_key.GetPubKey(); }
+    CQPubKey GetQuantumPubKey() const { return quantum_key.GetPubKey(); }
     CQPubKey GetDilithiumPubKey() const { return dilithium_key.GetPubKey(); }
     
     /** Получение адреса */

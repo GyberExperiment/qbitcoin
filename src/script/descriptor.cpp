@@ -1188,7 +1188,7 @@ protected:
             ret += tmp;
             while (!path.empty() && path.back()) {
                 if (path.size() > 1) ret += '}';
-                path.pop_back();
+                path.pop_back(); // move up one level after encountering '}'
             }
             if (!path.empty()) path.back() = true;
         }
@@ -1646,7 +1646,7 @@ std::unique_ptr<PubkeyProvider> InferPubkey(const CPubKey& pubkey, ParseScriptCo
 
 std::unique_ptr<PubkeyProvider> InferXOnlyPubkey(const XOnlyPubKey& xkey, ParseScriptContext ctx, const SigningProvider& provider)
 {
-    CPubKey pubkey{xkey.GetEvenCorrespondingCPubKey()};
+    CPubKey pubkey{xkey.GetEvenCorrespondingCQPubKey()};
     std::unique_ptr<PubkeyProvider> key_provider = std::make_unique<ConstPubkeyProvider>(0, pubkey, true);
     KeyOriginInfo info;
     if (provider.GetKeyOriginByXOnly(xkey, info)) {

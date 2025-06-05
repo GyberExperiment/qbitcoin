@@ -35,13 +35,20 @@ std::string GetTxnOutputType(TxoutType t)
 
 static bool MatchPayToPubkey(const CScript& script, valtype& pubkey)
 {
-    if (script.size() == CPubKey::SIZE + 2 && script[0] == CPubKey::SIZE && script.back() == OP_CHECKSIG) {
-        pubkey = valtype(script.begin() + 1, script.begin() + CPubKey::SIZE + 1);
-        return CPubKey::ValidSize(pubkey);
-    }
-    if (script.size() == CPubKey::COMPRESSED_SIZE + 2 && script[0] == CPubKey::COMPRESSED_SIZE && script.back() == OP_CHECKSIG) {
-        pubkey = valtype(script.begin() + 1, script.begin() + CPubKey::COMPRESSED_SIZE + 1);
-        return CPubKey::ValidSize(pubkey);
+    // For quantum keys, we need to handle the large size differently
+    // Check if script has format: [SIZE_BYTES] [PUBKEY_DATA] OP_CHECKSIG
+    if (script.size() >= 3 && script.back() == OP_CHECKSIG) {
+        // For large keys like Dilithium (1952 bytes), we use multi-byte size encoding
+        if (script.size() == CPubKey::SIZE + 3 && script[0] == OP_PUSHDATA2 && 
+            script[1] == (CPubKey::SIZE & 0xFF) && script[2] == ((CPubKey::SIZE >> 8) & 0xFF)) {
+            pubkey = valtype(script.begin() + 3, script.begin() + 3 + CPubKey::SIZE);
+            return CPubKey::ValidSize(pubkey);
+        }
+        // Legacy support for 33-byte compressed keys (if they exist)
+        else if (script.size() == 35 && script[0] == 33) {
+            pubkey = valtype(script.begin() + 1, script.begin() + 34);
+            return CPubKey::ValidSize(pubkey);
+        }
     }
     return false;
 }

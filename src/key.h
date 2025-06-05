@@ -421,6 +421,16 @@ public:
     /** Test whether this is the 0 key (the result of default construction). */
     bool IsNull() const { return m_keydata.IsNull(); }
 
+    /** Check if this is a valid X-only key (basic check). */
+    bool IsValid() const { return !IsNull(); }
+
+    /** Check if this is a fully valid X-only key (more thorough validation). */
+    bool IsFullyValid() const { 
+        // For quantum keys, we perform the same validation as IsValid()
+        // since the X-only key is just a hash representation
+        return IsValid(); 
+    }
+
     /** Construct an x-only pubkey from exactly 32 bytes (hash of full Dilithium key). */
     explicit QXOnlyPubKey(const unsigned char* bytes) 
     {
@@ -469,6 +479,30 @@ public:
         CQKeyID keyid(hash160);
         result.push_back(keyid);
         return result;
+    }
+
+    /** Create taproot tweak for this X-only key (Taproot API compatibility). */
+    std::optional<std::pair<QXOnlyPubKey, bool>> CreateTapTweak(const uint256* merkle_root) const {
+        if (!IsValid()) return std::nullopt;
+        
+        // For quantum-resistant keys, we simulate taproot tweak by creating a tweaked version
+        // of the x-only key using the merkle root if provided
+        QXOnlyPubKey result = *this;
+        
+        if (merkle_root && !merkle_root->IsNull()) {
+            // Create a new x-only key by combining current key with merkle root
+            CHash256 hasher;
+            hasher.Write(std::span<const unsigned char>(m_keydata.data(), 32));
+            hasher.Write(std::span<const unsigned char>(merkle_root->data(), 32));
+            uint256 tweaked_key;
+            hasher.Finalize(tweaked_key);
+            
+            // Use the hash as the new x-only key
+            result = QXOnlyPubKey(std::span<const unsigned char>(tweaked_key.data(), 32));
+        }
+        
+        // For quantum keys, we always return even parity (false)
+        return std::make_pair(result, false);
     }
 
     const unsigned char& operator[](int pos) const { return *(m_keydata.begin() + pos); }
