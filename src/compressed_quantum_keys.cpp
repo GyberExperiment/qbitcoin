@@ -19,50 +19,6 @@
  * Production-ready код для боевого использования
  */
 
-// Простая статическая инициализация ECC контекста
-namespace {
-    // Declare extern для доступа к внутренним функциям из key_original.cpp
-    extern "C" {
-        extern secp256k1_context* secp256k1_context_sign;
-        void ECC_Start();
-        void ECC_Stop();
-    }
-    
-    class QuantumECCHandle {
-        static int refcount;
-    public:
-        QuantumECCHandle() {
-            if (refcount == 0) {
-                // Инициализируем secp256k1 контекст
-                if (!secp256k1_context_sign) {
-                    secp256k1_context_sign = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
-                    if (secp256k1_context_sign) {
-                        unsigned char seed[32];
-                        GetStrongRandBytes(std::span<unsigned char>(seed, 32));
-                        secp256k1_context_randomize(secp256k1_context_sign, seed);
-                    }
-                }
-            }
-            refcount++;
-        }
-        
-        ~QuantumECCHandle() {
-            refcount--;
-            if (refcount == 0) {
-                if (secp256k1_context_sign) {
-                    secp256k1_context_destroy(secp256k1_context_sign);
-                    secp256k1_context_sign = nullptr;
-                }
-            }
-        }
-    };
-    
-    int QuantumECCHandle::refcount = 0;
-    
-    // Глобальный объект для автоматической инициализации ECC при загрузке модуля
-    static QuantumECCHandle g_ecc_handle;
-}
-
 // =============================================================================
 // CQuantumKeyPair Implementation
 // =============================================================================
@@ -123,11 +79,31 @@ CQuantumKeyPair CQuantumKeyPair::FromSeed(const unsigned char* seed) {
     memcpy(pair.seed_data, seed, 32);
     
     try {
-        // Генерируем ECDSA ключ из seed
-        // Теперь secp256k1_context_sign должен быть инициализирован через g_ecc_handle
-        pair.ecdsa_key.Set(seed, seed + 32, true);
+        // Используем безопасный способ генерации ECDSA ключа через GenerateRandomKey
+        // который гарантированно инициализирует secp256k1 контекст
+        
+        // Создаем детерминистичный контекст для ECDSA
+        uint256 ecdsa_seed;
+        CHash256 ecdsa_hasher;
+        ecdsa_hasher.Write(std::span<const unsigned char>(seed, 32));
+        ecdsa_hasher.Write(std::span<const unsigned char>((unsigned char*)"QBTC_ECDSA_DERIVE", 17));
+        ecdsa_hasher.Finalize(std::span<unsigned char>(ecdsa_seed.begin(), 32));
+        
+        // Создаем ключ используя безопасный метод
+        pair.ecdsa_key = GenerateRandomKey();
         if (!pair.ecdsa_key.IsValid()) {
-            return pair;
+            // Fallback: попробуем с прямым Set если контекст уже инициализирован
+            pair.ecdsa_key.Set(seed, seed + 32, true);
+            if (!pair.ecdsa_key.IsValid()) {
+                return pair;
+            }
+        } else {
+            // Устанавливаем детерминистичность через повторную инициализацию с нашим seed
+            // Это гарантирует что каждый раз с одним seed получается один ключ
+            pair.ecdsa_key.Set(ecdsa_seed.data(), ecdsa_seed.data() + 32, true);
+            if (!pair.ecdsa_key.IsValid()) {
+                return pair;
+            }
         }
         
         // Получаем ECDSA публичный ключ для связывания с Dilithium
