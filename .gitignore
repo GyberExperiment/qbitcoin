@@ -91,3 +91,4 @@ dilithium/
 
 # Keep our quantum-resistant implementation
 !qbtc/
+.giga/
