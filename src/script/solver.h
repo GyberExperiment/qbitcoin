@@ -11,13 +11,12 @@
 #include <attributes.h>
 #include <script/script.h>
 #include <span.h>
+#include <pubkey.h>
 
 #include <string>
 #include <optional>
 #include <utility>
 #include <vector>
-
-class CPubKey;
 
 enum class TxoutType {
     NONSTANDARD,

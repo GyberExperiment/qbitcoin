@@ -13,6 +13,7 @@
 #include <span.h>
 #include <uint256.h>
 #include <util/hasher.h>
+#include <pubkey.h>
 
 #include <cstddef>
 #include <shared_mutex>

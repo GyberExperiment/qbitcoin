@@ -23,11 +23,13 @@
 
 class CScript;
 class CScriptNum;
-class CScriptWitness;
 struct CScriptWitness;
 
 // Forward declarations for quantum-resistant types
 class CQPubKey;
+
+class CTransaction;
+class CValidationState;
 
 /** Signature hash types/flags */
 enum

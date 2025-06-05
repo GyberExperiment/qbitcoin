@@ -71,19 +71,25 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
     }
     case TxoutType::WITNESS_V0_KEYHASH: {
         WitnessV0KeyHash hash;
-        std::copy(vSolutions[0].begin(), vSolutions[0].end(), hash.begin());
+        if (vSolutions[0].size() == hash.size()) {
+            std::copy(vSolutions[0].begin(), vSolutions[0].end(), hash.data());
+        }
         addressRet = hash;
         return true;
     }
     case TxoutType::WITNESS_V0_SCRIPTHASH: {
         WitnessV0ScriptHash hash;
-        std::copy(vSolutions[0].begin(), vSolutions[0].end(), hash.begin());
+        if (vSolutions[0].size() == hash.size()) {
+            std::copy(vSolutions[0].begin(), vSolutions[0].end(), hash.data());
+        }
         addressRet = hash;
         return true;
     }
     case TxoutType::WITNESS_V1_TAPROOT: {
         WitnessV1Taproot tap;
-        std::copy(vSolutions[0].begin(), vSolutions[0].end(), tap.begin());
+        if (vSolutions[0].size() == tap.size()) {
+            std::copy(vSolutions[0].begin(), vSolutions[0].end(), tap.data());
+        }
         addressRet = tap;
         return true;
     }
