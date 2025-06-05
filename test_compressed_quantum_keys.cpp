@@ -296,10 +296,10 @@ private:
         // Добавляем входы с реальными данными
         for (size_t i = 0; i < 3; ++i) {
             COutPoint outpoint;
-            // Создаем реальный hash
-            unsigned char hash_bytes[32];
-            GetStrongRandBytes(std::span<unsigned char>(hash_bytes, 32));
-            outpoint.hash = uint256(std::span<const unsigned char>(hash_bytes, 32));
+            // Создаем реальный hash для transaction ID
+            uint256 txid_raw;
+            GetStrongRandBytes(std::span<unsigned char>(txid_raw.begin(), 32));
+            outpoint.hash = Txid::FromUint256(txid_raw);
             outpoint.n = i;
             
             if (!builder.AddInput(outpoint, test_keypairs[i], 100000 * (i + 1))) {
@@ -363,9 +363,9 @@ private:
         
         for (size_t i = 0; i < 2; ++i) {
             COutPoint outpoint;
-            unsigned char hash_bytes[32];
-            GetStrongRandBytes(std::span<unsigned char>(hash_bytes, 32));
-            outpoint.hash = uint256(std::span<const unsigned char>(hash_bytes, 32));
+            uint256 txid_raw;
+            GetStrongRandBytes(std::span<unsigned char>(txid_raw.begin(), 32));
+            outpoint.hash = Txid::FromUint256(txid_raw);
             outpoint.n = i;
             builder.AddInput(outpoint, test_keypairs[i], 50000);
         }
@@ -535,7 +535,7 @@ int main() {
             return 1;
         }
         
-        std::cout << "\n🚀 COMPRESSED QUANTUM KEYS ПОЛНОСТЬЮ ИНТЕГРИРОВАНЫ С DILITHIUM AGGREGATION!" << std::endl;
+        std::cout << "\n✅ COMPRESSED QUANTUM KEYS ПОЛНОСТЬЮ ИНТЕГРИРОВАНЫ С DILITHIUM AGGREGATION!" << std::endl;
         std::cout << "✅ Боевая Production-ready система готова к развертыванию!" << std::endl;
         std::cout << "🛡️ Quantum-resistant, Bitcoin-compatible, Aggregation-enabled!" << std::endl;
         

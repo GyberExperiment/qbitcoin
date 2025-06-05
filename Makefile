@@ -101,38 +101,41 @@ test_script_integration: $(QBTC_OBJECTS) $(SCRIPT_OBJS) test_script_integration.
 	@echo "✅ QBTC script integration test built successfully!"
 
 # COMPRESSED QUANTUM KEYS INTEGRATION - исправленные пути
-test_compressed_quantum_keys: test_compressed_quantum_keys.cpp src/compressed_quantum_keys.cpp
+test_compressed_quantum_keys: test_compressed_quantum_keys.cpp src/compressed_quantum_keys.cpp src/compressed_quantum_keys.h $(DILITHIUM_LIB)
 	@echo "Building Compressed Quantum Keys test..."
 	$(CXX) -std=c++20 -O2 -I. -Isrc \
-	    -DHAVE_CONFIG_H \
-	    test_compressed_quantum_keys.cpp \
-	    src/compressed_quantum_keys.cpp \
-	    src/dilithium/aggregation.cpp \
-	    src/key.cpp \
-	    src/pubkey.cpp \
-	    src/hash.cpp \
-	    src/random.cpp \
-	    src/util/strencodings.cpp \
-	    src/bech32.cpp \
-	    src/script/script.cpp \
-	    src/primitives/transaction.cpp \
-	    src/crypto/hmac_sha512.cpp \
-	    src/logging.cpp \
-	    src/support/cleanse.cpp \
-	    src/crypto/sha256.cpp \
-	    src/crypto/sha512.cpp \
-	    src/crypto/ripemd160.cpp \
-	    src/uint256.cpp \
-	    src/util/time.cpp \
-	    src/util/fs.cpp \
-	    src/util/syserror.cpp \
-	    src/util/threadnames.cpp \
-	    src/randomenv.cpp \
-	    src/util/check.cpp \
-	    src/clientversion.cpp \
-	    src/support/lockedpool.cpp \
-	    -Wl,-force_load,src/dilithium/libdilithium.a \
-	    -o test_compressed_quantum_keys
+		-DHAVE_CONFIG_H \
+		test_compressed_quantum_keys.cpp \
+		src/compressed_quantum_keys.cpp \
+		src/dilithium/aggregation.cpp \
+		src/key_original.cpp \
+		src/key.cpp \
+		src/pubkey.cpp \
+		src/hash.cpp \
+		src/random.cpp \
+		src/util/strencodings.cpp \
+		src/bech32.cpp \
+		src/script/script.cpp \
+		src/primitives/transaction.cpp \
+		src/crypto/hmac_sha512.cpp \
+		src/crypto/chacha20.cpp \
+		src/crypto/sha256.cpp \
+		src/crypto/sha256_sse4.cpp \
+		src/logging.cpp \
+		src/support/cleanse.cpp \
+		src/crypto/sha512.cpp \
+		src/crypto/ripemd160.cpp \
+		src/uint256.cpp \
+		src/util/time.cpp \
+		src/util/fs.cpp \
+		src/util/syserror.cpp \
+		src/util/threadnames.cpp \
+		src/randomenv.cpp \
+		src/util/check.cpp \
+		src/clientversion.cpp \
+		src/support/lockedpool.cpp \
+		-Wl,-force_load,src/dilithium/libdilithium.a \
+		-o test_compressed_quantum_keys
 	@echo "✅ Compressed Quantum Keys test built successfully!"
 
 # Production ready system build

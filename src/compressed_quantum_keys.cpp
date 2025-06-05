@@ -24,18 +24,15 @@
 
 CQuantumKeyPair::CQuantumKeyPair() : is_valid(false) {
     memset(seed_data, 0, 32);
-    ecdsa_key = std::make_unique<CKey>();
-    dilithium_key = std::make_unique<CQKey>();
 }
 
 // Конструкторы копирования и перемещения
 CQuantumKeyPair::CQuantumKeyPair(const CQuantumKeyPair& other) 
-    : address_hash(other.address_hash)
+    : ecdsa_key(other.ecdsa_key)
+    , dilithium_key(other.dilithium_key)
+    , address_hash(other.address_hash)
     , is_valid(other.is_valid) {
     memcpy(seed_data, other.seed_data, 32);
-    
-    ecdsa_key = std::make_unique<CKey>(*other.ecdsa_key);
-    dilithium_key = std::make_unique<CQKey>(*other.dilithium_key);
 }
 
 CQuantumKeyPair::CQuantumKeyPair(CQuantumKeyPair&& other) noexcept
@@ -49,8 +46,8 @@ CQuantumKeyPair::CQuantumKeyPair(CQuantumKeyPair&& other) noexcept
 
 CQuantumKeyPair& CQuantumKeyPair::operator=(const CQuantumKeyPair& other) {
     if (this != &other) {
-        ecdsa_key = std::make_unique<CKey>(*other.ecdsa_key);
-        dilithium_key = std::make_unique<CQKey>(*other.dilithium_key);
+        ecdsa_key = other.ecdsa_key;
+        dilithium_key = other.dilithium_key;
         address_hash = other.address_hash;
         is_valid = other.is_valid;
         memcpy(seed_data, other.seed_data, 32);
@@ -70,22 +67,6 @@ CQuantumKeyPair& CQuantumKeyPair::operator=(CQuantumKeyPair&& other) noexcept {
     return *this;
 }
 
-const CKey& CQuantumKeyPair::GetECDSAKey() const {
-    return *ecdsa_key;
-}
-
-const CQKey& CQuantumKeyPair::GetDilithiumKey() const {
-    return *dilithium_key;
-}
-
-CPubKey CQuantumKeyPair::GetECDSAPubKey() const {
-    return ecdsa_key->GetPubKey();
-}
-
-CQPubKey CQuantumKeyPair::GetDilithiumPubKey() const {
-    return dilithium_key->GetPubKey();
-}
-
 CQuantumKeyPair CQuantumKeyPair::FromSeed(const unsigned char* seed) {
     CQuantumKeyPair pair;
     
@@ -98,8 +79,8 @@ CQuantumKeyPair CQuantumKeyPair::FromSeed(const unsigned char* seed) {
     
     try {
         // Генерируем ECDSA ключ из seed
-        pair.ecdsa_key->Set(seed, seed + 32, true);
-        if (!pair.ecdsa_key->IsValid()) {
+        pair.ecdsa_key.Set(seed, seed + 32, true);
+        if (!pair.ecdsa_key.IsValid()) {
             LogPrintf("CQuantumKeyPair: ECDSA key generation failed\n");
             return pair;
         }
@@ -114,14 +95,14 @@ CQuantumKeyPair CQuantumKeyPair::FromSeed(const unsigned char* seed) {
         
         // Используем детерминистичную генерацию для Dilithium
         // В production версии это должно использовать seed для инициализации PRNG
-        pair.dilithium_key->MakeNewKey(true);
-        if (!pair.dilithium_key->IsValid()) {
+        pair.dilithium_key.MakeNewKey(true);
+        if (!pair.dilithium_key.IsValid()) {
             LogPrintf("CQuantumKeyPair: Dilithium key generation failed\n");
             return pair;
         }
         
         // Создаем адрес из Hash160(dilithium_pubkey)
-        CQPubKey dilithium_pubkey = pair.dilithium_key->GetPubKey();
+        CQPubKey dilithium_pubkey = pair.dilithium_key.GetPubKey();
         if (!dilithium_pubkey.IsValid()) {
             LogPrintf("CQuantumKeyPair: Dilithium pubkey generation failed\n");
             return pair;
@@ -130,7 +111,7 @@ CQuantumKeyPair CQuantumKeyPair::FromSeed(const unsigned char* seed) {
         pair.address_hash = Hash160(std::span<const unsigned char>(dilithium_pubkey.data(), dilithium_pubkey.size()));
         pair.is_valid = true;
         
-        if (LogAcceptCategory(BCLog::QUANTUM)) {
+        if (LogAcceptCategory(BCLog::QUANTUM, BCLog::Level::Debug)) {
             LogPrintf("CQuantumKeyPair: Generated keypair with address %s\n", 
                     pair.GetAddress().c_str());
         }
@@ -164,28 +145,28 @@ bool CQuantumKeyPair::SignECDSA(const uint256& hash, std::vector<unsigned char>&
     if (!is_valid) {
         return false;
     }
-    return ecdsa_key->Sign(hash, signature);
+    return ecdsa_key.Sign(hash, signature);
 }
 
 bool CQuantumKeyPair::SignDilithium(const uint256& hash, std::vector<unsigned char>& signature) const {
     if (!is_valid) {
         return false;
     }
-    return dilithium_key->Sign(hash, signature);
+    return dilithium_key.Sign(hash, signature);
 }
 
 bool CQuantumKeyPair::VerifyECDSA(const uint256& hash, const std::vector<unsigned char>& signature) const {
     if (!is_valid) {
         return false;
     }
-    return ecdsa_key->GetPubKey().Verify(hash, signature);
+    return ecdsa_key.GetPubKey().Verify(hash, signature);
 }
 
 bool CQuantumKeyPair::VerifyDilithium(const uint256& hash, const std::vector<unsigned char>& signature) const {
     if (!is_valid) {
         return false;
     }
-    return dilithium_key->GetPubKey().Verify(hash, signature);
+    return dilithium_key.GetPubKey().Verify(hash, signature);
 }
 
 bool CQuantumKeyPair::Derive(CQuantumKeyPair& child, unsigned int index) const {
@@ -271,7 +252,7 @@ CScriptWitness CQuantumWitness::ToScriptWitness() const {
         WriteLE32(count_bytes.data(), input_count);
         witness.stack.push_back(count_bytes);
         
-        if (LogAcceptCategory(BCLog::QUANTUM)) {
+        if (LogAcceptCategory(BCLog::QUANTUM, BCLog::Level::Debug)) {
             LogPrintf("CQuantumWitness: Serialized to scriptWitness with %d stack elements\n", 
                     witness.stack.size());
         }
@@ -310,7 +291,7 @@ bool CQuantumWitness::FromScriptWitness(const CScriptWitness& witness) {
         }
         input_count = ReadLE32(witness.stack[3].data());
         
-        if (LogAcceptCategory(BCLog::QUANTUM)) {
+        if (LogAcceptCategory(BCLog::QUANTUM, BCLog::Level::Debug)) {
             LogPrintf("CQuantumWitness: Deserialized from scriptWitness: %d inputs\n", 
                     input_count);
         }
@@ -379,7 +360,7 @@ bool CQuantumTransactionBuilder::AddInput(const COutPoint& outpoint,
     input_keypairs.push_back(keypair);
     input_amounts.push_back(amount);
     
-    if (LogAcceptCategory(BCLog::QUANTUM)) {
+    if (LogAcceptCategory(BCLog::QUANTUM, BCLog::Level::Debug)) {
         LogPrintf("CQuantumTransactionBuilder: Added input %s with amount %d\n",
                 outpoint.ToString().c_str(), amount);
     }
@@ -399,7 +380,7 @@ bool CQuantumTransactionBuilder::AddOutput(const CScript& scriptPubKey, CAmount 
     
     outputs.push_back(output);
     
-    if (LogAcceptCategory(BCLog::QUANTUM)) {
+    if (LogAcceptCategory(BCLog::QUANTUM, BCLog::Level::Debug)) {
         LogPrintf("CQuantumTransactionBuilder: Added output with amount %d\n", amount);
     }
     
@@ -427,7 +408,7 @@ bool CQuantumTransactionBuilder::BuildTransaction(CMutableTransaction& tx, std::
     tx.version = 2;
     tx.nLockTime = 0;
     
-    if (LogAcceptCategory(BCLog::QUANTUM)) {
+    if (LogAcceptCategory(BCLog::QUANTUM, BCLog::Level::Debug)) {
         LogPrintf("CQuantumTransactionBuilder: Built transaction with %d inputs, %d outputs\n",
                 inputs.size(), outputs.size());
     }
@@ -492,7 +473,7 @@ bool CQuantumTransactionBuilder::SignTransaction(CMutableTransaction& tx, std::s
             input.scriptWitness = script_witness;
         }
         
-        if (LogAcceptCategory(BCLog::QUANTUM)) {
+        if (LogAcceptCategory(BCLog::QUANTUM, BCLog::Level::Debug)) {
             LogPrintf("CQuantumTransactionBuilder: Successfully signed transaction with aggregated signature\n");
         }
         
@@ -623,7 +604,7 @@ bool CQuantumTransactionValidator::ValidateQuantumWitness(const CQuantumWitness&
         return false;
     }
     
-    if (LogAcceptCategory(BCLog::QUANTUM)) {
+    if (LogAcceptCategory(BCLog::QUANTUM, BCLog::Level::Debug)) {
         LogPrintf("CQuantumTransactionValidator: Successfully validated aggregated transaction\n");
     }
     
@@ -717,7 +698,7 @@ bool CQuantumWalletManager::AddKeyPair(const CQuantumKeyPair& keypair) {
     keypairs.push_back(keypair);
     address_to_index[address_hash] = index;
     
-    if (LogAcceptCategory(BCLog::QUANTUM)) {
+    if (LogAcceptCategory(BCLog::QUANTUM, BCLog::Level::Debug)) {
         LogPrintf("CQuantumWalletManager: Added keypair for address %s\n",
                 keypair.GetAddress().c_str());
     }
