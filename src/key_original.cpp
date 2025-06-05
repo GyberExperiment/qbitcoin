@@ -290,18 +290,20 @@ bool CKey::Derive(CKey& keyChild, ChainCode &ccChild, unsigned int nChild, const
 }
 
 EllSwiftPubKey CKey::EllSwiftCreate(std::span<const std::byte> ent32) const {
+    // Simplified implementation - just return zeros for now to avoid compilation issues
     (void)ent32;
     EllSwiftPubKey ret;
-    memset(ret.data(), 0, ret.size());
+    std::memset(const_cast<std::byte*>(ret.data()), 0, ret.size());
     return ret;
 }
 
 ECDHSecret CKey::ComputeBIP324ECDHSecret(const EllSwiftPubKey& their_ellswift, const EllSwiftPubKey& our_ellswift, bool initiating) const {
+    // Simplified implementation - just return zeros for now to avoid compilation issues
     (void)their_ellswift;
     (void)our_ellswift;
     (void)initiating;
     ECDHSecret ret;
-    memset(ret.data(), 0, ret.size());
+    std::memset(const_cast<std::byte*>(ret.data()), 0, ret.size());
     return ret;
 }
 
