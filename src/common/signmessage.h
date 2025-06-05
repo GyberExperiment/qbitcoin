@@ -10,7 +10,8 @@
 
 #include <string>
 
-class CKey;
+// Forward declaration removed - CKey is defined in key.h
+// class CKey;
 
 extern const std::string MESSAGE_MAGIC;
 

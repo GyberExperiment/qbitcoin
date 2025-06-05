@@ -19,9 +19,10 @@
 #include <shared_mutex>
 #include <vector>
 
-class CPubKey;
+// Forward declarations removed - types defined in pubkey.h as aliases
+// class CPubKey;
+// class XOnlyPubKey;
 class CTransaction;
-class XOnlyPubKey;
 
 // DoS prevention: limit cache size to 32MiB (over 1000000 entries on 64-bit
 // systems). Due to how we count cache size, actual memory usage is slightly

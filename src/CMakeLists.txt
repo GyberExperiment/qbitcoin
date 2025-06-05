@@ -356,6 +356,23 @@ if(BUILD_DAEMON)
   )
   install_binary_component(bitcoind HAS_MANPAGE)
 endif()
+
+# QBTC quantum-resistant daemon
+if(BUILD_QBITCOIND)
+  add_executable(qbitcoind
+    qbitcoind.cpp
+    init/bitcoind.cpp
+  )
+  add_windows_resources(qbitcoind bitcoind-res.rc)
+  add_windows_application_manifest(qbitcoind)
+  target_link_libraries(qbitcoind
+    core_interface
+    bitcoin_node
+    $<TARGET_NAME_IF_EXISTS:bitcoin_wallet>
+  )
+  install_binary_component(qbitcoind HAS_MANPAGE)
+endif()
+
 if(ENABLE_IPC AND BUILD_DAEMON)
   add_executable(bitcoin-node
     bitcoind.cpp

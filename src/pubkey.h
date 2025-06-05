@@ -16,5 +16,6 @@ using CPubKey = CQPubKey;
 using XOnlyPubKey = QXOnlyPubKey;
 using CExtPubKey = CQExtPubKey;
 using EllSwiftPubKey = QEllSwiftPubKey;
+using CKey = CQKey;
 
 #endif // BITCOIN_PUBKEY_H

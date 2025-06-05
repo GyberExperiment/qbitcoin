@@ -46,9 +46,17 @@ constexpr static size_t DILITHIUM_PUBLICKEY_SIZE = 1952;  // CRYPTO_PUBLICKEYBYT
 constexpr static size_t DILITHIUM_SECRETKEY_SIZE = 4032;  // CRYPTO_SECRETKEYBYTES for mode 3
 constexpr static size_t DILITHIUM_SIGNATURE_SIZE = 3309;  // CRYPTO_BYTES for mode 3
 
+/** Size of ECDH shared secrets (compatibility with BIP324). */
+constexpr static size_t ECDH_SECRET_SIZE = 32;  // SHA256 output size
+
+// Used to represent ECDH shared secret (ECDH_SECRET_SIZE bytes) - compatibility with BIP324
+using ECDHSecret = std::array<std::byte, ECDH_SECRET_SIZE>;
+
 // Forward declarations
 class CQPubKey;
 class QKeyPair;
+class QXOnlyPubKey;
+struct QEllSwiftPubKey;
 
 /** A reference to a CQKey: the Hash160 of its serialized public key */
 class CQKeyID : public uint160
@@ -216,6 +224,19 @@ public:
 
     //! Derive a new key using BIP32-style derivation
     bool Derive(CQKey& keyChild, ChainCode &ccChild, unsigned int nChild, const ChainCode& cc) const;
+
+    /** Create an ellswift-encoded public key for this key, with specified entropy.
+     * For quantum keys, we create a compatible representation based on our public key.
+     */
+    QEllSwiftPubKey EllSwiftCreate(std::span<const std::byte> entropy) const;
+
+    /** Compute a BIP324-style ECDH shared secret.
+     * For quantum keys, we simulate ECDH using our quantum key material and provide 
+     * a deterministic 32-byte shared secret for protocol compatibility.
+     */
+    ECDHSecret ComputeBIP324ECDHSecret(const QEllSwiftPubKey& their_ellswift,
+                                       const QEllSwiftPubKey& our_ellswift,
+                                       bool initiating) const;
 };
 
 CQKey GenerateRandomQKey(bool compressed = true) noexcept;
@@ -277,6 +298,12 @@ public:
     explicit CQPubKey(const std::vector<uint8_t>& _vch)
     {
         Set(_vch.begin(), _vch.end());
+    }
+
+    //! Construct a public key from a span.
+    explicit CQPubKey(std::span<const unsigned char> _span)
+    {
+        Set(_span.begin(), _span.end());
     }
 
     //! Simple read-only vector-like interface to the pubkey data.
@@ -429,6 +456,18 @@ public:
     /** Construct a full CQPubKey with the even parity (API compatibility). */
     CQPubKey GetEvenCorrespondingCQPubKey() const;
 
+    /** Get possible key IDs for this X-only key (Bitcoin Core API compatibility). */
+    std::vector<CQKeyID> GetKeyIDs() const {
+        std::vector<CQKeyID> result;
+        // For quantum keys, the X-only key directly maps to a single key ID
+        // We create the key ID by hashing the 32-byte x-only data to 160 bits
+        uint160 hash160;
+        CHash160().Write(std::span<const unsigned char>(m_keydata.data(), 32)).Finalize(hash160);
+        CQKeyID keyid(hash160);
+        result.push_back(keyid);
+        return result;
+    }
+
     const unsigned char& operator[](int pos) const { return *(m_keydata.begin() + pos); }
     static constexpr size_t size() { return 32; }
     const unsigned char* data() const { return m_keydata.begin(); }
@@ -578,6 +617,7 @@ struct CQExtPubKey {
     void Encode(unsigned char code[BIP32_EXTKEY_SIZE]) const;
     void Decode(const unsigned char code[BIP32_EXTKEY_SIZE]);
     void DecodeWithVersion(const unsigned char code[BIP32_EXTKEY_WITH_VERSION_SIZE]);
+    void EncodeWithVersion(unsigned char code[BIP32_EXTKEY_WITH_VERSION_SIZE]) const;
     [[nodiscard]] bool Derive(CQExtPubKey& out, unsigned int nChild) const;
 };
 

@@ -13,10 +13,12 @@
 #include <script/interpreter.h>
 #include <script/keyorigin.h>
 #include <script/signingprovider.h>
+#include <span.h>
 #include <uint256.h>
 
+#include <vector>
+
 class CKey;
-class CKeyID;
 class CScript;
 class CTransaction;
 class SigningProvider;
