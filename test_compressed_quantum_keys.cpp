@@ -90,6 +90,25 @@ private:
         
         // Тест 1.2: Проверяем что ключи связаны
         CQuantumKeyPair keypair2 = CQuantumKeyPair::FromSeed(test_seed);
+        if (!keypair2.IsValid()) {
+            std::cout << "❌ Ошибка генерации второй ключевой пары из seed" << std::endl;
+            return false;
+        }
+        
+        // Детальная отладка детерминистичности
+        std::cout << "🔍 Debug: keypair1 address hash: " << keypair1.GetAddressHash().ToString() << std::endl;
+        std::cout << "🔍 Debug: keypair2 address hash: " << keypair2.GetAddressHash().ToString() << std::endl;
+        
+        // Проверяем что ECDSA ключи одинаковые
+        CPubKey ecdsa1 = keypair1.GetECDSAPubKey();
+        CPubKey ecdsa2 = keypair2.GetECDSAPubKey();
+        std::cout << "🔍 Debug: ECDSA ключи одинаковые: " << (ecdsa1 == ecdsa2 ? "ДА" : "НЕТ") << std::endl;
+        
+        // Проверяем что Dilithium ключи одинаковые
+        CQPubKey dil1 = keypair1.GetDilithiumPubKey();
+        CQPubKey dil2 = keypair2.GetDilithiumPubKey();
+        std::cout << "🔍 Debug: Dilithium ключи одинаковые: " << (dil1 == dil2 ? "ДА" : "НЕТ") << std::endl;
+        
         if (keypair1.GetAddressHash() != keypair2.GetAddressHash()) {
             std::cout << "❌ Ключи не детерминистичны" << std::endl;
             return false;
@@ -526,6 +545,33 @@ private:
 int main() {
     std::cout << "=== COMPREHENSIVE BATTLE TEST: COMPRESSED QUANTUM KEYS + DILITHIUM AGGREGATION ===" << std::endl;
     std::cout << std::endl;
+    
+    // Инициализируем ECC контекст перед запуском тестов
+    std::cout << "🔧 Инициализируем криптографические библиотеки..." << std::endl;
+    
+    // Создаем локальную инициализацию ECC аналогично BasicTestingSetup
+    class LocalECC {
+        bool initialized = false;
+    public:
+        LocalECC() {
+            try {
+                // Пытаемся инициализировать через sanity check
+                if (ECC_InitSanityCheck()) {
+                    initialized = true;
+                    std::cout << "✅ ECC контекст инициализирован" << std::endl;
+                }
+            } catch (...) {
+                std::cout << "⚠️ ECC контекст уже инициализирован или ошибка" << std::endl;
+                initialized = false;
+            }
+        }
+        bool IsReady() const { return initialized; }
+    };
+    
+    LocalECC ecc;
+    if (!ecc.IsReady()) {
+        std::cout << "⚠️ Продолжаем без явной инициализации ECC..." << std::endl;
+    }
     
     try {
         CompressedQuantumKeysTest test;

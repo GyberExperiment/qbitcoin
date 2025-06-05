@@ -372,6 +372,10 @@ public:
 
     //! Check if this is a valid Dilithium public key (more expensive than IsValid())
     bool IsFullyValid() const;
+
+    //! Check if the public key is compressed (for API compatibility with Bitcoin Core)
+    //! Dilithium keys are always considered "compressed" as they have fixed size
+    bool IsCompressed() const { return true; }
 };
 
 /** Quantum-resistant X-only public key (simplified version for API compatibility) */
