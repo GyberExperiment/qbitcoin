@@ -363,9 +363,7 @@ if(BUILD_QBITCOIND)
     qbitcoind.cpp
     init/bitcoind.cpp
     quantum/manager.cpp
-    dilithium/qbtc_wrapper.o
-    dilithium/dilithium3_aliases.o
-    dilithium/dilithium_wrapper_fixed.o
+    hybrid_crypto.cpp
   )
   add_windows_resources(qbitcoind bitcoind-res.rc)
   add_windows_application_manifest(qbitcoind)
@@ -373,6 +371,7 @@ if(BUILD_QBITCOIND)
     core_interface
     bitcoin_node
     $<TARGET_NAME_IF_EXISTS:bitcoin_wallet>
+    ${PROJECT_SOURCE_DIR}/dilithium/libqbtc_dilithium.a
   )
   install_binary_component(qbitcoind HAS_MANPAGE)
 endif()

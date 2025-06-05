@@ -22,198 +22,223 @@
 #include <clientversion.h>
 #include <common/args.h>
 #include <common/init.h>
-#include <common/url.h>
+#include <common/system.h>
 #include <compat/compat.h>
 #include <init.h>
 #include <interfaces/chain.h>
 #include <interfaces/init.h>
-#include <interfaces/node.h>
-#include <logging.h>
-#include <node/interface_ui.h>
+#include <kernel/context.h>
 #include <node/context.h>
+#include <node/interface_ui.h>
+#include <node/warnings.h>
 #include <noui.h>
 #include <util/check.h>
 #include <util/exception.h>
 #include <util/signalinterrupt.h>
 #include <util/strencodings.h>
 #include <util/syserror.h>
-#include <util/task_runner.h>
-#include <util/thread.h>
 #include <util/threadnames.h>
+#include <util/tokenpipe.h>
 #include <util/translation.h>
 
 // QBTC Quantum Extensions
 #include <quantum/manager.h>
 #include <compressed_quantum_keys.h>
 #include <dilithium/aggregation.h>
+#include <hybrid_crypto.h>
 
 #include <any>
 #include <functional>
-#include <stdio.h>
-#include <tuple>
-#include <thread>
-#include <chrono>
+#include <optional>
 
-const std::function<std::string(const char*)> G_TRANSLATION_FUN = nullptr;
+using node::NodeContext;
 
-#if HAVE_DECL_FORK
-#include <signal.h>
+const TranslateFn G_TRANSLATION_FUN{nullptr};
 
-/** Custom UNIX signal handlers. */
-static std::function<void()> g_shutdown_function;
-
-void HandleSIGTERM(int)
+static bool ParseArgs(NodeContext& node, int argc, char* argv[])
 {
-    if (g_shutdown_function) {
-        g_shutdown_function();
-    }
-}
-
-void HandleSIGHUP(int)
-{
-    LogInstance().m_reopen_file = true;
-}
-
-#endif
-
-static void RegisterSignalHandler(int signal, void(*handler)(int))
-{
-#if HAVE_DECL_FORK
-    struct sigaction sa;
-    sa.sa_handler = handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sigaction(signal, &sa, nullptr);
-#endif
-}
-
-static bool AppInit(ArgsManager& args, int argc, char* argv[])
-{
-    // QBTC: Initialize quantum subsystem early
-    try {
-        LogPrintf("QBTC: Initializing quantum subsystem...\n");
-        
-        // Quantum Manager инициализация
-        CQuantumManager::Initialize(true, true); // quantum=true, aggregation=true
-        
-        LogPrintf("QBTC: Quantum subsystem initialized successfully\n");
-        LogPrintf("QBTC: - Quantum protection: ENABLED\n");
-        LogPrintf("QBTC: - Signature aggregation: ENABLED\n");
-        LogPrintf("QBTC: - Wallet compatibility: FULL\n");
-        
-    } catch (const std::exception& e) {
-        LogPrintf("QBTC: ERROR - Failed to initialize quantum subsystem: %s\n", e.what());
-        return false;
+    ArgsManager& args{*Assert(node.args)};
+    SetupServerArgs(args, node.init->canListenIpc());
+    std::string error;
+    if (!args.ParseParameters(argc, argv, error)) {
+        return InitError(Untranslated("Error parsing command line arguments: " + error));
     }
 
-    // Connect bitcoind signal handlers
-    noui_connect();
+    if (auto error = common::InitConfig(args)) {
+        return InitError(error->message, error->details);
+    }
 
-    // Standard Bitcoin Core initialization via interfaces
-    try {
-        node::NodeContext node_context{};
-        auto init = interfaces::MakeNode(node_context);
-        if (!init) {
-            return false;
+    // Error out when loose non-argument tokens are encountered on command line
+    for (int i = 1; i < argc; i++) {
+        if (!IsSwitchChar(argv[i][0])) {
+            return InitError(Untranslated("Command line contains unexpected token '" + std::string(argv[i]) + "', see qbitcoind -h for a list of options."));
         }
-        return true;
-    } catch (const std::exception& e) {
-        LogPrintf("Init error: %s\n", e.what());
-        return false;
     }
-}
-
-static bool AppShutdown()
-{
-    // QBTC: Shutdown quantum subsystem
-    try {
-        LogPrintf("QBTC: Shutting down quantum subsystem...\n");
-        CQuantumManager::Shutdown();
-        LogPrintf("QBTC: Quantum subsystem shutdown complete\n");
-    } catch (const std::exception& e) {
-        LogPrintf("QBTC: WARNING - Error during quantum shutdown: %s\n", e.what());
-    }
-    
     return true;
 }
 
-int main(int argc, char* argv[])
+static bool ProcessInitCommands(ArgsManager& args)
 {
-    // QBTC Banner
-    LogPrintf("=== QBITCOIND - Quantum-resistant Bitcoin Core ===\n");
-    LogPrintf("QBTC: Version %s\n", FormatFullVersion().c_str());
-    LogPrintf("QBTC: Features - Compressed Quantum Keys + Dilithium Aggregation\n");
-    LogPrintf("QBTC: Compatibility - Full Bitcoin wallet support\n");
-    LogPrintf("QBTC: Protection - Post-quantum cryptography\n");
-
-    ArgsManager args;
-
-    SetupHelpOptions(args);
-    std::string error;
-    if (!args.ParseParameters(argc, argv, error)) {
-        return InitError(Untranslated(strprintf("Error parsing command line arguments: %s\n", error)));
-    }
-
-    if (args.IsArgSet("-version")) {
-        strprintf("QBTC (Quantum Bitcoin Core) version %s", FormatFullVersion().c_str());
-        return EXIT_SUCCESS;
-    }
-
     // Process help and version before taking care about datadir
-    try {
-        if (args.IsArgSet("-?") || args.IsArgSet("-h") || args.IsArgSet("-help")) {
-            std::string strUsage = "QBTC (Quantum-resistant Bitcoin Core) version " + FormatFullVersion() + "\n\n" +
-                                 "Usage:  qbitcoind [options]\n\n";
+    if (HelpRequested(args) || args.GetBoolArg("-version", false)) {
+        std::string strUsage = "QBTC (Quantum-resistant Bitcoin Core) daemon version " + FormatFullVersion() + "\n";
+
+        if (args.GetBoolArg("-version", false)) {
+            strUsage += FormatParagraph(LicenseInfo());
+        } else {
+            strUsage += "\n"
+                "The QBTC daemon (qbitcoind) is a quantum-resistant Bitcoin Core daemon that provides post-quantum cryptography protection.\n\n"
+                "It maintains full Bitcoin wallet compatibility while adding:\n"
+                "- Compressed Quantum Keys with Dilithium signatures\n"
+                "- Signature aggregation for space efficiency\n"
+                "- Quantum-resistant transaction validation\n"
+                "- Full backward compatibility with existing Bitcoin wallets\n"
+                "\n"
+                "Usage: qbitcoind [options]\n"
+                "\n";
             strUsage += args.GetHelpMessage();
             strUsage += "\nQBTC Quantum Features:\n";
             strUsage += "  -quantum=<1|0>           Enable/disable quantum protection (default: 1)\n";
             strUsage += "  -aggregation=<1|0>       Enable/disable signature aggregation (default: 1)\n";
             strUsage += "  -quantumdebug            Enable quantum debug logging\n";
             strUsage += "  -quantumstats            Show quantum operation statistics\n";
-
-            tfm::format(std::cout, "%s", strUsage);
-            return EXIT_SUCCESS;
         }
-    } catch (const std::exception& e) {
+
+        std::cout << strUsage;
+        return true;
+    }
+
+    return false;
+}
+
+static bool AppInit(NodeContext& node)
+{
+    bool fRet = false;
+    ArgsManager& args = *Assert(node.args);
+
+    std::any context{&node};
+    try
+    {
+        // QBTC: Initialize secp256k1 context for hybrid ECDSA/Dilithium system
+        printf("QBTC: Initializing hybrid cryptography system...\n");
+        static QBTCHybridCrypto hybrid_crypto; // Keep alive during daemon lifecycle
+        printf("QBTC: - ECDSA context initialized (for Bitcoin address compatibility)\n");
+        
+        // QBTC: Initialize quantum subsystem early
+        printf("=== QBITCOIND - Quantum-resistant Bitcoin Core ===\n");
+        printf("QBTC: Version %s\n", FormatFullVersion().c_str());
+        printf("QBTC: Features - Compressed Quantum Keys + Dilithium Aggregation\n");
+        printf("QBTC: Compatibility - Full Bitcoin wallet support\n");
+        printf("QBTC: Protection - Post-quantum cryptography\n");
+        
+        try {
+            printf("QBTC: Initializing quantum subsystem...\n");
+            
+            // Quantum Manager инициализация
+            CQuantumManager::Initialize(true, true); // quantum=true, aggregation=true
+            
+            printf("QBTC: Quantum subsystem initialized successfully\n");
+            printf("QBTC: - Quantum protection: ENABLED\n");
+            printf("QBTC: - Signature aggregation: ENABLED\n");
+            printf("QBTC: - Wallet compatibility: FULL\n");
+            printf("QBTC: HYBRID SYSTEM READY - ECDSA addresses + Dilithium signatures\n");
+            
+        } catch (const std::exception& e) {
+            printf("QBTC: ERROR - Failed to initialize quantum subsystem: %s\n", e.what());
+            return false;
+        }
+
+        // -server defaults to true for qbitcoind but not for the GUI so do this here
+        args.SoftSetBoolArg("-server", true);
+        // Set this early so that parameter interactions go to console
+        InitLogging(args);
+        InitParameterInteraction(args);
+        if (!AppInitBasicSetup(args, node.exit_status)) {
+            // InitError will have been called with detailed error, which ends up on console
+            return false;
+        }
+        if (!AppInitParameterInteraction(args)) {
+            // InitError will have been called with detailed error, which ends up on console
+            return false;
+        }
+
+        node.warnings = std::make_unique<node::Warnings>();
+
+        node.kernel = std::make_unique<kernel::Context>();
+        if (!AppInitSanityChecks(*node.kernel))
+        {
+            // InitError will have been called with detailed error, which ends up on console
+            return false;
+        }
+
+        // Lock critical directories after daemonization
+        if (!AppInitLockDirectories())
+        {
+            // If locking a directory failed, exit immediately
+            return false;
+        }
+        fRet = AppInitInterfaces(node) && AppInitMain(node);
+    }
+    catch (const std::exception& e) {
         PrintExceptionContinue(&e, "AppInit()");
-        return EXIT_FAILURE;
     } catch (...) {
         PrintExceptionContinue(nullptr, "AppInit()");
-        return EXIT_FAILURE;
     }
 
+    return fRet;
+}
+
+static bool AppShutdown(NodeContext& node)
+{
+    // QBTC: Shutdown quantum subsystem
     try {
-        util::ThreadRename("qbtc-main");
-        
-        if (!AppInit(args, argc, argv)) {
-            return EXIT_FAILURE;
-        }
+        printf("QBTC: Shutting down quantum subsystem...\n");
+        CQuantumManager::Shutdown();
+        printf("QBTC: Quantum subsystem shutdown complete\n");
     } catch (const std::exception& e) {
-        PrintExceptionContinue(&e, "AppInit()");
-        return EXIT_FAILURE;
-    } catch (...) {
-        PrintExceptionContinue(nullptr, "AppInit()");
-        return EXIT_FAILURE;
+        printf("QBTC: WARNING - Error during quantum shutdown: %s\n", e.what());
+    }
+    
+    return true;
+}
+
+MAIN_FUNCTION
+{
+#ifdef WIN32
+    common::WinCmdLineArgs winArgs;
+    std::tie(argc, argv) = winArgs.get();
+#endif
+
+    NodeContext node;
+    int exit_status;
+    std::unique_ptr<interfaces::Init> init = interfaces::MakeNodeInit(node, argc, argv, exit_status);
+    if (!init) {
+        return exit_status;
     }
 
-    try {
-        // Basic shutdown handling - for now just wait for interrupt
-        while (true) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            // In full implementation, check for shutdown signals here
-        }
-        
-        if (!AppShutdown()) {
-            return EXIT_FAILURE;
-        }
-    } catch (const std::exception& e) {
-        PrintExceptionContinue(&e, "Shutdown()");
-        return EXIT_FAILURE;
-    } catch (...) {
-        PrintExceptionContinue(nullptr, "Shutdown()");
-        return EXIT_FAILURE;
-    }
+    SetupEnvironment();
 
-    LogPrintf("QBTC: Shutdown complete. Stay quantum-safe!\n");
-    return EXIT_SUCCESS;
+    // Connect qbitcoind signal handlers
+    noui_connect();
+
+    util::ThreadSetInternalName("qbtc-init");
+
+    // Interpret command line arguments
+    ArgsManager& args = *Assert(node.args);
+    if (!ParseArgs(node, argc, argv)) return EXIT_FAILURE;
+    // Process early info return commands such as -help or -version
+    if (ProcessInitCommands(args)) return EXIT_SUCCESS;
+
+    // Start application
+    if (!AppInit(node) || !Assert(node.shutdown_signal)->wait()) {
+        node.exit_status = EXIT_FAILURE;
+    }
+    Interrupt(node);
+    Shutdown(node);
+    
+    // QBTC cleanup
+    AppShutdown(node);
+
+    printf("QBTC: Shutdown complete. Stay quantum-safe!\n");
+    return node.exit_status;
 } 
