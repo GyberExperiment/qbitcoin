@@ -71,6 +71,7 @@ namespace BCLog {
         TXRECONCILIATION = (CategoryMask{1} << 26),
         SCAN        = (CategoryMask{1} << 27),
         TXPACKAGES  = (CategoryMask{1} << 28),
+        QUANTUM     = (CategoryMask{1} << 29),  // QBTC: Quantum signature aggregation logging
         ALL         = ~NONE,
     };
     enum class Level {

@@ -5,7 +5,12 @@
 #include <cstdint>
 #include <chrono>
 #include <memory>
-#include <uint256.h>
+#include <string>
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <optional>
+#include "simple_uint256.h"
 
 // Forward declarations for QBTC integration
 class CQPubKey;
