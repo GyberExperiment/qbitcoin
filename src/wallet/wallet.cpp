@@ -3565,13 +3565,13 @@ void CWallet::SetupOwnDescriptorScriptPubKeyMans(WalletBatch& batch)
     AssertLockHeld(cs_wallet);
     assert(!IsWalletFlagSet(WALLET_FLAG_EXTERNAL_SIGNER));
     // Make a seed
-    CKey seed_key = GenerateRandomKey();
+    CKey seed_key = GenerateRandomQKey();
     CPubKey seed = seed_key.GetPubKey();
     assert(seed_key.VerifyPubKey(seed));
 
     // Get the extended key
     CExtKey master_key;
-    master_key.SetSeed(seed_key);
+    master_key.SetSeed(reinterpret_cast<const std::byte*>(seed_key.begin()), seed_key.size());
 
     SetupDescriptorScriptPubKeyMans(batch, master_key);
 }

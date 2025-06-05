@@ -1008,7 +1008,7 @@ V2Transport::V2Transport(NodeId nodeid, bool initiating, const CKey& key, std::s
 }
 
 V2Transport::V2Transport(NodeId nodeid, bool initiating) noexcept
-    : V2Transport{nodeid, initiating, GenerateRandomKey(),
+    : V2Transport{nodeid, initiating, GenerateRandomQKey(),
                   MakeByteSpan(GetRandHash()), GenerateRandomGarbage()} {}
 
 void V2Transport::SetReceiveState(RecvState recv_state) noexcept

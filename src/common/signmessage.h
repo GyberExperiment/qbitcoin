@@ -10,8 +10,8 @@
 
 #include <string>
 
-// Forward declaration removed - CKey is defined in key.h
-// class CKey;
+// Forward declaration to break circular dependency
+class CQKey;
 
 extern const std::string MESSAGE_MAGIC;
 
@@ -63,7 +63,7 @@ MessageVerificationResult MessageVerify(
  * @param[out] signature Signature, base64 encoded, only set if true is returned.
  * @return true if signing was successful. */
 bool MessageSign(
-    const CKey& privkey,
+    const CQKey& privkey,
     const std::string& message,
     std::string& signature);
 

@@ -28,7 +28,7 @@
 #include <vector>
 
 class CFeeRate;
-class CKey;
+class CQKey;
 enum class FeeReason;
 enum class OutputType;
 struct PartiallySignedTransaction;

@@ -637,7 +637,7 @@ std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor()
                 assert(false);
             }
             CExtKey master_key;
-            master_key.SetSeed(seed_key);
+            master_key.SetSeed(reinterpret_cast<const std::byte*>(seed_key.begin()), seed_key.size());
 
             // Make the combo descriptor
             std::string xpub = EncodeExtPubKey(master_key.Neuter());
@@ -671,7 +671,7 @@ std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor()
         if (!GetKey(m_hd_chain.seed_id, seed_key)) {
             assert(false);
         }
-        out.master_key.SetSeed(seed_key);
+        out.master_key.SetSeed(reinterpret_cast<const std::byte*>(seed_key.begin()), seed_key.size());
     }
 
     // Handle the rest of the scriptPubKeys which must be imports and may not have all info

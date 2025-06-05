@@ -18,7 +18,10 @@
 
 #include <vector>
 
-class CKey;
+// Forward declarations removed - types defined in pubkey.h as aliases
+// class CKeyID;
+// class CKey;
+
 class CScript;
 class CTransaction;
 class SigningProvider;

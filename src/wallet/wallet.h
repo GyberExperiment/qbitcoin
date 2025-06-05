@@ -52,9 +52,10 @@
 
 #include <boost/signals2/signal.hpp>
 
-class CKey;
-class CKeyID;
-class CPubKey;
+// QBTC: Forward declarations removed - these are now type aliases in key.h
+// class CKey;
+// class CKeyID;
+// class CPubKey;
 class Coin;
 class SigningProvider;
 enum class MemPoolRemovalReason;
@@ -71,7 +72,8 @@ class WalletBatch;
 enum class DBErrors : int;
 } // namespace wallet
 struct CBlockLocator;
-struct CExtKey;
+// QBTC: Forward declaration removed - this is now type alias in key.h
+// struct CExtKey;
 struct FlatSigningProvider;
 struct KeyOriginInfo;
 struct PartiallySignedTransaction;
@@ -83,6 +85,14 @@ struct bilingual_str;
 
 namespace wallet {
 struct WalletContext;
+
+// QBTC: Resolve namespace conflicts with global types
+using ::interfaces::Chain;
+using ::interfaces::BlockInfo; 
+using ::interfaces::Handler;
+using ::MemPoolRemovalReason;
+using ::SigningResult;
+using ::common::PSBTError;
 
 //! Explicitly delete the wallet.
 //! Blocks the current thread until the wallet is destructed.

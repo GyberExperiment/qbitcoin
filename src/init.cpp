@@ -390,7 +390,6 @@ void Shutdown(NodeContext& node)
     node.chainman.reset();
     node.validation_signals.reset();
     node.scheduler.reset();
-    node.ecc_context.reset();
     node.kernel.reset();
 
     RemovePidFile(*node.args);
@@ -1116,7 +1115,7 @@ bool AppInitSanityChecks(const kernel::Context& kernel)
         return InitError(strprintf(_("Initialization sanity check failed. %s is shutting down."), CLIENT_NAME));
     }
 
-    if (!ECC_InitSanityCheck()) {
+    if (!QBTC_InitSanityCheck()) {
         return InitError(strprintf(_("Elliptic curve cryptography sanity check failure. %s is shutting down."), CLIENT_NAME));
     }
 

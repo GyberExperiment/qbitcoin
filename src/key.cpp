@@ -757,4 +757,24 @@ bool CQKey::SetPrivKeyData(const std::vector<unsigned char>& data) {
     }
     
     return true;
+}
+
+// CQExtKey constructor implementation
+CQExtKey::CQExtKey(const CQExtPubKey& xpub, const CQKey& privkey) {
+    nDepth = xpub.nDepth;
+    memcpy(vchFingerprint, xpub.vchFingerprint, sizeof(vchFingerprint));
+    nChild = xpub.nChild;
+    chaincode = xpub.chaincode;
+    key = privkey;
+}
+
+// CQExtKey Neuter implementation  
+CQExtPubKey CQExtKey::Neuter() const {
+    CQExtPubKey result;
+    result.nDepth = nDepth;
+    memcpy(result.vchFingerprint, vchFingerprint, sizeof(vchFingerprint));
+    result.nChild = nChild;
+    result.chaincode = chaincode;
+    result.pubkey = key.GetPubKey();
+    return result;
 } 

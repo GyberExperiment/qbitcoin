@@ -11,11 +11,6 @@
 
 // QBTC: Legacy type aliases for backward compatibility with Bitcoin Core
 // These redirect to quantum-resistant equivalents from key.h
-using CKeyID = CQKeyID;
-using CPubKey = CQPubKey;
-using XOnlyPubKey = QXOnlyPubKey;
-using CExtPubKey = CQExtPubKey;
-using EllSwiftPubKey = QEllSwiftPubKey;
-using CKey = CQKey;
+// Moved to key.h to avoid circular dependencies
 
 #endif // BITCOIN_PUBKEY_H

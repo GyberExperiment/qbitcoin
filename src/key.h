@@ -58,6 +58,9 @@ class QKeyPair;
 class QXOnlyPubKey;
 struct QEllSwiftPubKey;
 
+// Forward declarations for inter-dependent structures
+struct CQExtPubKey;
+
 /** A reference to a CQKey: the Hash160 of its serialized public key */
 class CQKeyID : public uint160
 {
@@ -471,8 +474,11 @@ public:
     const unsigned char& operator[](int pos) const { return *(m_keydata.begin() + pos); }
     static constexpr size_t size() { return 32; }
     const unsigned char* data() const { return m_keydata.begin(); }
+    unsigned char* data() { return m_keydata.begin(); }
     const unsigned char* begin() const { return m_keydata.begin(); }
     const unsigned char* end() const { return m_keydata.end(); }
+    unsigned char* begin() { return m_keydata.begin(); }
+    unsigned char* end() { return m_keydata.end(); }
 
     bool operator==(const QXOnlyPubKey& other) const { return m_keydata == other.m_keydata; }
     bool operator!=(const QXOnlyPubKey& other) const { return m_keydata != other.m_keydata; }
@@ -591,6 +597,12 @@ struct CQExtKey {
 
     CQExtKey() = default;
 
+    // Constructor for Bitcoin Core compatibility - construct from CExtPubKey and private key
+    CQExtKey(const CQExtPubKey& xpub, const CQKey& privkey);
+
+    // Method to get corresponding public key structure 
+    CQExtPubKey Neuter() const;
+
     void Encode(unsigned char code[BIP32_EXTKEY_SIZE]) const;
     void Decode(const unsigned char code[BIP32_EXTKEY_SIZE]);
     [[nodiscard]] bool Derive(CQExtKey& out, unsigned int nChild) const;
@@ -614,6 +626,17 @@ struct CQExtPubKey {
             memcmp(a.pubkey.data(), b.pubkey.data(), a.pubkey.size()) == 0;
     }
 
+    // Comparison operator for std::map usage
+    friend bool operator<(const CQExtPubKey &a, const CQExtPubKey &b)
+    {
+        if (a.nDepth != b.nDepth) return a.nDepth < b.nDepth;
+        int fingerprint_cmp = memcmp(a.vchFingerprint, b.vchFingerprint, sizeof(a.vchFingerprint));
+        if (fingerprint_cmp != 0) return fingerprint_cmp < 0;
+        if (a.nChild != b.nChild) return a.nChild < b.nChild;
+        if (a.chaincode != b.chaincode) return a.chaincode < b.chaincode;
+        return memcmp(a.pubkey.data(), b.pubkey.data(), a.pubkey.size()) < 0;
+    }
+
     void Encode(unsigned char code[BIP32_EXTKEY_SIZE]) const;
     void Decode(const unsigned char code[BIP32_EXTKEY_SIZE]);
     void DecodeWithVersion(const unsigned char code[BIP32_EXTKEY_WITH_VERSION_SIZE]);
@@ -622,5 +645,16 @@ struct CQExtPubKey {
 };
 
 bool QBTC_InitSanityCheck();
+
+// QBTC: Legacy type aliases for backward compatibility with Bitcoin Core
+// These redirect to quantum-resistant equivalents - moved here to avoid circular dependencies
+using CKeyID = CQKeyID;
+using CPubKey = CQPubKey;
+using XOnlyPubKey = QXOnlyPubKey;
+using CExtPubKey = CQExtPubKey;
+using EllSwiftPubKey = QEllSwiftPubKey;
+using CKey = CQKey;
+using CPrivKey = CQPrivKey;
+using CExtKey = CQExtKey;
 
 #endif // QBITCOIN_QKEY_H 
