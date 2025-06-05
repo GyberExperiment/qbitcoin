@@ -100,10 +100,10 @@ test_script_integration: $(QBTC_OBJECTS) $(SCRIPT_OBJS) test_script_integration.
 	$(CXX) $(CXXFLAGS) test_script_integration.cpp $(QBTC_OBJECTS) $(SCRIPT_OBJS) $(LDFLAGS) -o test_script_integration
 	@echo "✅ QBTC script integration test built successfully!"
 
-# COMPRESSED QUANTUM KEYS INTEGRATION - исправленные пути
+# COMPRESSED QUANTUM KEYS INTEGRATION - боевая реализация с реальной secp256k1
 test_compressed_quantum_keys: test_compressed_quantum_keys.cpp src/compressed_quantum_keys.cpp src/compressed_quantum_keys.h $(DILITHIUM_LIB)
-	@echo "Building Compressed Quantum Keys test..."
-	$(CXX) -std=c++20 -O2 -I. -Isrc \
+	@echo "Building Compressed Quantum Keys test with real secp256k1..."
+	$(CXX) -std=c++20 -O2 -I. -Isrc -Isrc/secp256k1/include \
 		-DHAVE_CONFIG_H \
 		test_compressed_quantum_keys.cpp \
 		src/compressed_quantum_keys.cpp \
@@ -114,6 +114,7 @@ test_compressed_quantum_keys: test_compressed_quantum_keys.cpp src/compressed_qu
 		src/hash.cpp \
 		src/random.cpp \
 		src/util/strencodings.cpp \
+		src/crypto/hex_base.cpp \
 		src/bech32.cpp \
 		src/script/script.cpp \
 		src/primitives/transaction.cpp \
@@ -134,9 +135,11 @@ test_compressed_quantum_keys: test_compressed_quantum_keys.cpp src/compressed_qu
 		src/util/check.cpp \
 		src/clientversion.cpp \
 		src/support/lockedpool.cpp \
+		src/util/translation_qbtc.cpp \
+		-Lsrc/secp256k1/build/lib -lsecp256k1 \
 		-Wl,-force_load,src/dilithium/libdilithium.a \
 		-o test_compressed_quantum_keys
-	@echo "✅ Compressed Quantum Keys test built successfully!"
+	@echo "✅ Compressed Quantum Keys test built successfully with real secp256k1!"
 
 # Production ready system build
 build_quantum_system: src/compressed_quantum_keys.cpp src/compressed_quantum_keys.h
