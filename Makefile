@@ -26,7 +26,8 @@ QBTC_SOURCES = src/key.cpp \
                src/util/syserror.cpp \
                src/util/check.cpp \
                src/clientversion.cpp \
-               src/util/translation_qbtc.cpp
+               src/util/translation_qbtc.cpp \
+               src/dilithium/aggregation.cpp
 QBTC_OBJECTS = $(QBTC_SOURCES:.cpp=.o)
 
 # Test executable
@@ -38,7 +39,7 @@ QBTC_OBJS = src/key.o src/random.o src/support/cleanse.o src/support/lockedpool.
            src/crypto/sha256.o src/crypto/sha512.o src/logging.o src/randomenv.o \
            src/crypto/sha256_sse4.o src/crypto/chacha20.o src/util/time.o \
            src/util/threadnames.o src/util/fs.o src/util/syserror.o src/util/check.o \
-           src/clientversion.o src/util/translation_qbtc.o
+           src/clientversion.o src/util/translation_qbtc.o src/dilithium/aggregation.o
 
 # Script engine objects
 SCRIPT_OBJS = src/script/script.o src/script/interpreter.o src/primitives/transaction.o \
@@ -54,7 +55,7 @@ BASIC_OBJS = src/key.o src/random.o src/support/cleanse.o src/support/lockedpool
              src/crypto/hmac_sha512.o
 
 # Default target
-all: test_qbtc_basic test_script_integration
+all: test_qbtc_basic test_script_integration test_aggregation_production
 
 # Build Dilithium library
 $(DILITHIUM_LIB):
@@ -77,10 +78,21 @@ test_qbtc_basic: test_qbtc_basic.cpp $(BASIC_OBJS)
 	$(CXX) $(CXXFLAGS) test_qbtc_basic.cpp $(BASIC_OBJS) $(LDFLAGS) -o test_qbtc_basic
 	@echo "✅ QBTC test built successfully!"
 
+# Build production aggregation test
+test_aggregation_production: test_aggregation_integration.cpp $(QBTC_OBJECTS) $(SCRIPT_OBJS)
+	@echo "Building QBTC Production Dilithium Aggregation Test..."
+	$(CXX) $(CXXFLAGS) test_aggregation_integration.cpp $(QBTC_OBJECTS) $(SCRIPT_OBJS) $(LDFLAGS) -o test_aggregation_production
+	@echo "✅ Production aggregation test built successfully!"
+
 # Run tests
 test: $(TEST_TARGET)
 	@echo "Running QBTC tests..."
 	./$(TEST_TARGET)
+
+# Run production aggregation test
+test-aggregation: test_aggregation_production
+	@echo "Running QBTC Production Dilithium Aggregation Test..."
+	./test_aggregation_production
 
 # Build script integration test
 test_script_integration: $(QBTC_OBJECTS) $(SCRIPT_OBJS) test_script_integration.cpp
@@ -88,11 +100,56 @@ test_script_integration: $(QBTC_OBJECTS) $(SCRIPT_OBJS) test_script_integration.
 	$(CXX) $(CXXFLAGS) test_script_integration.cpp $(QBTC_OBJECTS) $(SCRIPT_OBJS) $(LDFLAGS) -o test_script_integration
 	@echo "✅ QBTC script integration test built successfully!"
 
+# COMPRESSED QUANTUM KEYS INTEGRATION - исправленные пути
+test_compressed_quantum_keys: test_compressed_quantum_keys.cpp src/compressed_quantum_keys.cpp
+	@echo "Building Compressed Quantum Keys test..."
+	$(CXX) -std=c++20 -O2 -I. -Isrc \
+	    -DHAVE_CONFIG_H \
+	    test_compressed_quantum_keys.cpp \
+	    src/compressed_quantum_keys.cpp \
+	    src/dilithium/aggregation.cpp \
+	    src/key.cpp \
+	    src/pubkey.cpp \
+	    src/hash.cpp \
+	    src/random.cpp \
+	    src/util/strencodings.cpp \
+	    src/bech32.cpp \
+	    src/script/script.cpp \
+	    src/primitives/transaction.cpp \
+	    src/crypto/hmac_sha512.cpp \
+	    src/logging.cpp \
+	    src/support/cleanse.cpp \
+	    src/crypto/sha256.cpp \
+	    src/crypto/sha512.cpp \
+	    src/crypto/ripemd160.cpp \
+	    src/uint256.cpp \
+	    src/util/time.cpp \
+	    src/util/fs.cpp \
+	    src/util/syserror.cpp \
+	    src/util/threadnames.cpp \
+	    src/randomenv.cpp \
+	    src/util/check.cpp \
+	    src/clientversion.cpp \
+	    src/support/lockedpool.cpp \
+	    -Wl,-force_load,src/dilithium/libdilithium.a \
+	    -o test_compressed_quantum_keys
+	@echo "✅ Compressed Quantum Keys test built successfully!"
+
+# Production ready system build
+build_quantum_system: src/compressed_quantum_keys.cpp src/compressed_quantum_keys.h
+	@echo "🔧 Building complete Compressed Quantum Keys system..."
+	$(CXX) -std=c++20 -O2 -I. -Isrc -c src/compressed_quantum_keys.cpp -o compressed_quantum_keys.o
+	@echo "✅ Compressed Quantum Keys system compiled successfully"
+
+# Clean quantum builds
+clean_quantum:
+	rm -f test_compressed_quantum_keys compressed_quantum_keys.o test_quantum_wallet.dat
+
 # Clean build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -f $(QBTC_OBJECTS) $(SCRIPT_OBJS)
-	rm -f $(TEST_TARGET) test_script_integration
+	rm -f $(TEST_TARGET) test_script_integration test_aggregation_production
 	@echo "✅ Clean completed"
 
 # Install dependencies (Ubuntu/Debian)

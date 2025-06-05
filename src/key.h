@@ -310,14 +310,14 @@ public:
     {
         unsigned int len = size();
         ::WriteCompactSize(s, len);
-        s.write((char*)vch, len);
+        s.write(std::span<const std::byte>(reinterpret_cast<const std::byte*>(vch), len));
     }
     template <typename Stream>
     void Unserialize(Stream& s)
     {
         const unsigned int len(::ReadCompactSize(s));
         if (len == SIZE) {
-            s.read((char*)vch, len);
+            s.read(std::span<std::byte>(reinterpret_cast<std::byte*>(vch), len));
         } else {
             // invalid pubkey, skip available data
             s.ignore(len);
