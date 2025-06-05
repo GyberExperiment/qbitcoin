@@ -19,11 +19,11 @@
 #include <vector>
 
 #include <key.h> // For quantum-resistant signatures support
+#include <pubkey.h>
 
-class CPubKey;
 class CScript;
 class CScriptNum;
-class XOnlyPubKey;
+class CScriptWitness;
 struct CScriptWitness;
 
 // Forward declarations for quantum-resistant types
@@ -309,8 +309,8 @@ private:
     const PrecomputedTransactionData* txdata;
 
 protected:
-    virtual bool VerifyECDSASignature(const std::vector<unsigned char>& vchSig, const CPubKey& vchPubKey, const uint256& sighash) const;
-    virtual bool VerifySchnorrSignature(std::span<const unsigned char> sig, const XOnlyPubKey& pubkey, const uint256& sighash) const;
+    virtual bool VerifyECDSASignature(const std::vector<unsigned char>& vchSig, const CQPubKey& vchPubKey, const uint256& sighash) const;
+    virtual bool VerifySchnorrSignature(std::span<const unsigned char> sig, const QXOnlyPubKey& pubkey, const uint256& sighash) const;
     virtual bool VerifyDilithiumSignature(const std::vector<unsigned char>& vchSig, const CQPubKey& vchPubKey, const uint256& sighash) const;
 
 public:

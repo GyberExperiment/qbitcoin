@@ -33,9 +33,25 @@ QBTC_OBJECTS = $(QBTC_SOURCES:.cpp=.o)
 TEST_TARGET = test_qbtc_basic
 TEST_SOURCES = test_qbtc_basic.cpp
 
+# Object files for QBTC
+QBTC_OBJS = src/key.o src/random.o src/support/cleanse.o src/support/lockedpool.o \
+           src/crypto/sha256.o src/crypto/sha512.o src/logging.o src/randomenv.o \
+           src/crypto/sha256_sse4.o src/crypto/chacha20.o src/util/time.o \
+           src/util/threadnames.o src/util/fs.o src/util/syserror.o src/util/check.o \
+           src/clientversion.o src/util/translation_qbtc.o
+
 # Script engine objects
 SCRIPT_OBJS = src/script/script.o src/script/interpreter.o src/primitives/transaction.o \
-             src/hash.o src/uint256.o src/serialize.o
+             src/hash.o src/uint256.o src/crypto/ripemd160.o src/crypto/hmac_sha512.o \
+             src/pubkey.o src/util/strencodings.o src/crypto/sha1.o src/crypto/hex_base.o
+
+# Basic objects for QBTC tests 
+BASIC_OBJS = src/key.o src/random.o src/support/cleanse.o src/support/lockedpool.o \
+             src/crypto/sha256.o src/crypto/sha512.o src/logging.o src/randomenv.o \
+             src/crypto/sha256_sse4.o src/crypto/chacha20.o src/util/time.o \
+             src/util/threadnames.o src/util/fs.o src/util/syserror.o src/util/check.o \
+             src/clientversion.o src/util/translation_qbtc.o src/crypto/ripemd160.o \
+             src/crypto/hmac_sha512.o
 
 # Default target
 all: test_qbtc_basic test_script_integration
@@ -56,9 +72,9 @@ $(DILITHIUM_LIB):
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Build test executable
-$(TEST_TARGET): $(QBTC_OBJECTS) $(TEST_SOURCES) $(DILITHIUM_LIB)
+test_qbtc_basic: test_qbtc_basic.cpp $(BASIC_OBJS)
 	@echo "Building QBTC test..."
-	$(CXX) $(CXXFLAGS) $(TEST_SOURCES) $(QBTC_OBJECTS) -Wl,-force_load,$(DILITHIUM_LIB) -o $(TEST_TARGET) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) test_qbtc_basic.cpp $(BASIC_OBJS) $(LDFLAGS) -o test_qbtc_basic
 	@echo "✅ QBTC test built successfully!"
 
 # Run tests

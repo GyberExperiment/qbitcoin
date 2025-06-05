@@ -7,6 +7,7 @@
 #include "script/interpreter.h"
 #include "primitives/transaction.h"
 #include "uint256.h"
+#include "util/strencodings.h"
 
 class TestSignatureChecker : public BaseSignatureChecker
 {
@@ -23,7 +24,12 @@ public:
         testPubKey = testKey.GetPubKey();
         
         // Create test hash
-        testHash = uint256S("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+        auto hash_opt = uint256::FromHex("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+        if (hash_opt) {
+            testHash = *hash_opt;
+        } else {
+            throw std::runtime_error("Failed to create test hash");
+        }
         
         // Create test signature
         testKey.Sign(testHash, testSignature);
@@ -33,26 +39,27 @@ public:
         std::cout << "  Signature size: " << testSignature.size() << " bytes" << std::endl;
     }
 
-    bool CheckECDSASignature(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const override
+    bool CheckECDSASignature(const std::vector<unsigned char>&, const std::vector<unsigned char>&, const CScript&, SigVersion) const override
     {
         std::cout << "ECDSA signature check called (should not happen for Dilithium)" << std::endl;
         return false;
     }
 
-    bool CheckSchnorrSignature(std::span<const unsigned char> sig, std::span<const unsigned char> pubkey, SigVersion sigversion, ScriptExecutionData& execdata, ScriptError* serror = nullptr) const override
+    bool CheckSchnorrSignature(std::span<const unsigned char>, std::span<const unsigned char>, SigVersion, ScriptExecutionData&, ScriptError*) const override
     {
         std::cout << "Schnorr signature check called (should not happen for Dilithium)" << std::endl;
         return false;
     }
 
-    bool CheckDilithiumSignature(const std::vector<unsigned char>& signature, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const override
+    bool CheckDilithiumSignature(const std::vector<unsigned char>& signature, const std::vector<unsigned char>& vchPubKey, const CScript&, SigVersion) const override
     {
         std::cout << "✅ Dilithium signature check called!" << std::endl;
         std::cout << "  Signature size: " << signature.size() << " bytes" << std::endl;
         std::cout << "  Public key size: " << vchPubKey.size() << " bytes" << std::endl;
         
         // Verify this is our test signature
-        if (signature == testSignature && vchPubKey == testPubKey.GetBytes()) {
+        std::vector<unsigned char> testPubKeyBytes(testPubKey.begin(), testPubKey.end());
+        if (signature == testSignature && vchPubKey == testPubKeyBytes) {
             std::cout << "  ✅ Signature and public key match test data" << std::endl;
             return true;
         } else {
@@ -61,22 +68,92 @@ public:
         }
     }
 
-    bool CheckLockTime(const CScriptNum& nLockTime) const override { return true; }
-    bool CheckSequence(const CScriptNum& nSequence) const override { return true; }
+    bool CheckLockTime(const CScriptNum&) const override { return true; }
+    bool CheckSequence(const CScriptNum&) const override { return true; }
 
     // Getters for test data
     const std::vector<unsigned char>& GetTestSignature() const { return testSignature; }
-    const std::vector<unsigned char> GetTestPubKey() const { return testPubKey.GetBytes(); }
+    std::vector<unsigned char> GetTestPubKey() const { 
+        return std::vector<unsigned char>(testPubKey.begin(), testPubKey.end()); 
+    }
 };
+
+// CastToBool is already defined in interpreter.cpp, so we declare it here
+extern bool CastToBool(const std::vector<unsigned char>& vch);
 
 int main() {
     std::cout << "=== QBTC Script Integration Test ===" << std::endl;
     
     try {
+        // Test basic Dilithium functionality first
+        std::cout << "Testing basic Dilithium functionality..." << std::endl;
+        
+        unsigned char pk[DILITHIUM_PUBLICKEY_SIZE];
+        unsigned char sk[DILITHIUM_SECRETKEY_SIZE];
+        
+        int ret = qbtc_dilithium3_keypair(pk, sk);
+        if (ret != 0) {
+            std::cout << "❌ Dilithium key generation failed" << std::endl;
+            return 1;
+        }
+        std::cout << "✅ Dilithium key generation works" << std::endl;
+        
+        // Test basic signing
+        const char* test_msg = "Hello QBTC";
+        unsigned char sig[DILITHIUM_SIGNATURE_SIZE];
+        size_t siglen = 0;
+        
+        ret = qbtc_dilithium3_signature(sig, &siglen, 
+                                      (const unsigned char*)test_msg, strlen(test_msg),
+                                      nullptr, 0, sk);
+        if (ret != 0) {
+            std::cout << "❌ Dilithium signing failed" << std::endl;
+            return 1;
+        }
+        std::cout << "✅ Dilithium signing works" << std::endl;
+        
+        // Test basic verification
+        ret = qbtc_dilithium3_verify(sig, siglen,
+                                   (const unsigned char*)test_msg, strlen(test_msg),
+                                   nullptr, 0, pk);
+        if (ret != 0) {
+            std::cout << "❌ Dilithium verification failed" << std::endl;
+            return 1;
+        }
+        std::cout << "✅ Dilithium verification works" << std::endl;
+        
+        // Test high-level CQKey without complex operations
+        std::cout << "Testing high-level CQKey..." << std::endl;
+        CQKey qkey;
+        
+        // Set known key data instead of using MakeNewKey
+        std::vector<unsigned char> key_data(sk, sk + DILITHIUM_SECRETKEY_SIZE);
+        if (!qkey.SetPrivKeyData(key_data)) {
+            std::cout << "❌ SetPrivKeyData failed" << std::endl;
+            return 1;
+        }
+        std::cout << "✅ CQKey SetPrivKeyData works" << std::endl;
+        
+        if (!qkey.IsValid()) {
+            std::cout << "❌ CQKey not valid" << std::endl;
+            return 1;
+        }
+        std::cout << "✅ CQKey is valid" << std::endl;
+        
+        std::cout << "Initializing QBTC sanity check..." << std::endl;
+        if (!QBTC_InitSanityCheck()) {
+            std::cout << "❌ QBTC sanity check failed" << std::endl;
+            return 1;
+        }
+        std::cout << "✅ QBTC sanity check passed" << std::endl;
+        
+        std::cout << "Creating test signature checker..." << std::endl;
         // Create test signature checker
         TestSignatureChecker checker;
+        std::cout << "✅ Test signature checker created" << std::endl;
         
         // Create a simple script: <signature> <pubkey> OP_CHECKSIG
+        std::cout << "Creating test script..." << std::endl;
         CScript script;
         script << checker.GetTestSignature();
         script << checker.GetTestPubKey();
@@ -86,12 +163,18 @@ int main() {
         std::cout << "  Script size: " << script.size() << " bytes" << std::endl;
         
         // Execute the script
+        std::cout << "Initializing script execution..." << std::endl;
         std::vector<std::vector<unsigned char>> stack;
         ScriptExecutionData execdata;
-        ScriptError error;
+        ScriptError error = SCRIPT_ERR_OK;
         
         std::cout << "\nExecuting script..." << std::endl;
         bool result = EvalScript(stack, script, SCRIPT_VERIFY_P2SH, checker, SigVersion::BASE, execdata, &error);
+        
+        std::cout << "Script execution completed" << std::endl;
+        std::cout << "Result: " << (result ? "true" : "false") << std::endl;
+        std::cout << "Stack size: " << stack.size() << std::endl;
+        std::cout << "Error code: " << (int)error << std::endl;
         
         if (result && !stack.empty() && CastToBool(stack.back())) {
             std::cout << "✅ Script execution successful!" << std::endl;

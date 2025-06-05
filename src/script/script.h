@@ -25,19 +25,22 @@
 #include <vector>
 
 // Maximum number of bytes pushable to the stack
-static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 520;
+static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 4096; // Increased for Dilithium3 signatures (3309 bytes)
 
 // Maximum number of non-push operations per script
 static const int MAX_OPS_PER_SCRIPT = 201;
+
+// Maximum number of bytes in a standard script
+static const int MAX_STANDARD_SCRIPT_SIZE = 1650;
+
+// Maximum script length in bytes
+static const int MAX_SCRIPT_SIZE = 460000;
 
 // Maximum number of public keys per multisig
 static const int MAX_PUBKEYS_PER_MULTISIG = 20;
 
 /** The limit of keys in OP_CHECKSIGADD-based scripts. It is due to the stack limit in BIP342. */
 static constexpr unsigned int MAX_PUBKEYS_PER_MULTI_A = 999;
-
-// Maximum script length in bytes
-static const int MAX_SCRIPT_SIZE = 460000;
 
 // Maximum number of values on script interpreter stack
 static const int MAX_STACK_SIZE = 1000;

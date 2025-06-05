@@ -6,12 +6,15 @@
 
 #include <common/signmessage.h>
 #include <hash.h>
-#include <pubkey.h>
 #include <serialize.h>
 #include <span.h>
 #include <support/allocators/secure.h>
 #include <uint256.h>
 #include <dilithium/api.h>
+
+// BIP32 constants
+const unsigned int BIP32_EXTKEY_SIZE = 74;
+const unsigned int BIP32_EXTKEY_WITH_VERSION_SIZE = 78;
 
 // Wrapper functions for use in C++
 extern "C" {
@@ -31,6 +34,8 @@ extern "C" {
 #include <array>
 #include <optional>
 
+typedef uint256 ChainCode;
+
 /**
  * CQPrivKey is a serialized quantum-resistant private key using Dilithium3
  */
@@ -38,7 +43,7 @@ typedef std::vector<unsigned char, secure_allocator<unsigned char> > CQPrivKey;
 
 /** Size of Dilithium3 keys and signatures */
 constexpr static size_t DILITHIUM_PUBLICKEY_SIZE = 1952;  // CRYPTO_PUBLICKEYBYTES for mode 3
-constexpr static size_t DILITHIUM_SECRETKEY_SIZE = 4000;  // CRYPTO_SECRETKEYBYTES for mode 3  
+constexpr static size_t DILITHIUM_SECRETKEY_SIZE = 4032;  // CRYPTO_SECRETKEYBYTES for mode 3
 constexpr static size_t DILITHIUM_SIGNATURE_SIZE = 3309;  // CRYPTO_BYTES for mode 3
 
 // Forward declarations
@@ -74,6 +79,10 @@ private:
 
     //! The actual byte data. nullptr for invalid keys.
     secure_unique_ptr<KeyType> keydata;
+    
+    //! Cached public key to avoid re-deriving (PRODUCTION OPTIMIZATION)
+    mutable std::unique_ptr<CQPubKey> cached_pubkey;
+    mutable bool pubkey_cached{false};
 
     //! Check whether the keydata is valid.
     bool static Check(const unsigned char* vch);
@@ -81,11 +90,17 @@ private:
     void MakeKeyData()
     {
         if (!keydata) keydata = make_secure_unique<KeyType>();
+        // Invalidate cache when key data changes
+        pubkey_cached = false;
+        cached_pubkey.reset();
     }
 
     void ClearKeyData()
     {
         keydata.reset();
+        // Clear cache as well
+        pubkey_cached = false;
+        cached_pubkey.reset();
     }
 
 public:
@@ -103,6 +118,14 @@ public:
                 ClearKeyData();
             }
             fCompressed = other.fCompressed;
+            // Copy cache state
+            if (other.cached_pubkey && other.pubkey_cached) {
+                cached_pubkey = std::make_unique<CQPubKey>(*other.cached_pubkey);
+                pubkey_cached = true;
+            } else {
+                cached_pubkey.reset();
+                pubkey_cached = false;
+            }
         }
         return *this;
     }
@@ -111,9 +134,9 @@ public:
 
     friend bool operator==(const CQKey& a, const CQKey& b)
     {
-        return a.fCompressed == b.fCompressed &&
-            a.size() == b.size() &&
-            memcmp(a.data(), b.data(), a.size()) == 0;
+        if (a.size() != b.size()) return false;
+        return a.size() == 0 || 
+            memcmp(a.begin(), b.begin(), a.size()) == 0;
     }
 
     //! Initialize using begin and end iterators to byte data.
@@ -131,17 +154,22 @@ public:
         }
     }
 
-    //! Simple read-only vector-like interface.
-    unsigned int size() const { return keydata ? keydata->size() : 0; }
-    const std::byte* data() const { return keydata ? reinterpret_cast<const std::byte*>(keydata->data()) : nullptr; }
-    const std::byte* begin() const { return data(); }
-    const std::byte* end() const { return data() + size(); }
+    //! Check if public key is valid
+    bool IsValid() const { return keydata && keydata->size() > 0; }
 
-    //! Check whether this private key is valid.
-    bool IsValid() const { return !!keydata; }
+    //! Get private key data for serialization/export
+    std::vector<unsigned char> GetPrivKeyData() const;
+    
+    //! Set private key data from external source
+    bool SetPrivKeyData(const std::vector<unsigned char>& data);
+
+    //! Simple read-only vector-like access for compatibility
+    size_t size() const { return keydata ? DILITHIUM_SECRETKEY_SIZE : 0; }
+    const unsigned char* begin() const { return keydata ? keydata->data() : nullptr; }
+    const unsigned char* end() const { return keydata ? keydata->data() + DILITHIUM_SECRETKEY_SIZE : nullptr; }
 
     //! Check whether the public key corresponding to this private key is (to be) compressed.
-    bool IsCompressed() const { return fCompressed; }
+    bool IsCompressed() const;
 
     //! Generate a new private key using Dilithium key generation.
     void MakeNewKey(bool fCompressed = true);
@@ -186,8 +214,8 @@ public:
      */
     QKeyPair ComputeKeyPair(const uint256* merkle_root) const;
 
-    //! BIP32 key derivation (simplified for quantum-resistant keys)
-    [[nodiscard]] bool Derive(CQKey& keyChild, ChainCode &ccChild, unsigned int nChild, const ChainCode& cc) const;
+    //! Derive a new key using BIP32-style derivation
+    bool Derive(CQKey& keyChild, ChainCode &ccChild, unsigned int nChild, const ChainCode& cc) const;
 };
 
 CQKey GenerateRandomQKey(bool compressed = true) noexcept;
@@ -365,6 +393,26 @@ public:
         memcpy(m_keydata.begin(), bytes, 32);
     }
 
+    /** Construct an x-only pubkey from span of bytes. */
+    explicit QXOnlyPubKey(std::span<const unsigned char> bytes) 
+    {
+        if (bytes.size() == 32) {
+            memcpy(m_keydata.begin(), bytes.data(), 32);
+        } else {
+            m_keydata.SetNull();
+        }
+    }
+
+    /** Construct an x-only pubkey from vector. */
+    explicit QXOnlyPubKey(const std::vector<unsigned char>& bytes) 
+    {
+        if (bytes.size() == 32) {
+            memcpy(m_keydata.begin(), bytes.data(), 32);
+        } else {
+            m_keydata.SetNull();
+        }
+    }
+
     /** Construct an x-only pubkey from a full CQPubKey (takes hash of the key). */
     explicit QXOnlyPubKey(const CQPubKey& pubkey);
 
@@ -434,6 +482,51 @@ public:
 
     //! Check if keypair is valid
     bool IsValid() const { return !!m_keypair; }
+};
+
+/** EllSwift-compatible interface for quantum-resistant keys */
+struct QEllSwiftPubKey
+{
+private:
+    static constexpr size_t SIZE = 64;
+    std::array<std::byte, SIZE> m_pubkey;
+
+public:
+    /** Default constructor creates all-zero pubkey (which is valid). */
+    QEllSwiftPubKey() noexcept = default;
+
+    /** Construct a new ellswift public key from a given serialization. */
+    QEllSwiftPubKey(std::span<const std::byte> ellswift) noexcept {
+        if (ellswift.size() == SIZE) {
+            std::copy(ellswift.begin(), ellswift.end(), m_pubkey.begin());
+        } else {
+            m_pubkey.fill(std::byte{0});
+        }
+    }
+
+    /** Decode to normal compressed CQPubKey (for debugging purposes). */
+    CQPubKey Decode() const;
+
+    // Read-only access for serialization.
+    const std::byte* data() const { return m_pubkey.data(); }
+    static constexpr size_t size() { return SIZE; }
+    const std::byte* begin() const { return m_pubkey.data(); }
+    const std::byte* end() const { return m_pubkey.data() + SIZE; }
+
+    const std::byte& operator[](int pos) const { return m_pubkey[pos]; }
+    friend bool operator==(const QEllSwiftPubKey& a, const QEllSwiftPubKey& b) { return a.m_pubkey == b.m_pubkey; }
+
+    /** Serialize ellswift pubkey. */
+    template <typename Stream>
+    void Serialize(Stream& s) const {
+        s << m_pubkey;
+    }
+
+    /** Unserialize ellswift pubkey. */
+    template <typename Stream>
+    void Unserialize(Stream& s) {
+        s >> m_pubkey;
+    }
 };
 
 /** Extended key structures for BIP32 compatibility */
